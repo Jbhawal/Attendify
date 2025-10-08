@@ -27,6 +27,24 @@ class SettingsRepository extends StateNotifier<AsyncValue<Map<String, dynamic>>>
     await _load();
   }
 
+  Future<void> setProfilePhoto(String? url) async {
+    if (url == null) {
+      await _box.delete('profile_photo');
+    } else {
+      await _box.put('profile_photo', url);
+    }
+    await _load();
+  }
+
+  Future<void> setUserEmail(String? email) async {
+    if (email == null) {
+      await _box.delete('user_email');
+    } else {
+      await _box.put('user_email', email);
+    }
+    await _load();
+  }
+
   Future<void> setDailyReminderEnabled(bool enabled) async {
     await _box.put('reminders_enabled', enabled);
     await _load();
@@ -37,7 +55,16 @@ class SettingsRepository extends StateNotifier<AsyncValue<Map<String, dynamic>>>
     await _load();
   }
 
+  /// Mass bunk handling rule. Stored as one of: 'present', 'cancelled', 'absent'
+  Future<void> setMassBunkRule(String rule) async {
+    await _box.put('mass_bunk_rule', rule);
+    await _load();
+  }
+
   String? get userName => state.value?['user_name'] as String?;
+  String? get profilePhoto => state.value?['profile_photo'] as String?;
+  String? get userEmail => state.value?['user_email'] as String?;
   bool get remindersEnabled => (state.value?['reminders_enabled'] as bool?) ?? false;
   String get reminderTime => (state.value?['reminder_time'] as String?) ?? '20:00';
+  String? get massBunkRule => state.value?['mass_bunk_rule'] as String?;
 }

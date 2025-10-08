@@ -29,11 +29,8 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
   @override
   Widget build(BuildContext context) {
     final subjects = ref.watch(subjectsProvider);
-    final schedules = ref.watch(scheduleProvider);
-    final entriesForDay = schedules
-        .where((entry) => entry.dayOfWeek == selectedDay)
-        .toList()
-      ..sort((a, b) => a.startTime.compareTo(b.startTime));
+  // Use repository helper to get entries for the selected day (already sorted by start time)
+  final entriesForDay = ref.read(scheduleProvider.notifier).entriesForDay(selectedDay);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FB),

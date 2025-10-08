@@ -57,6 +57,11 @@ class AttendanceRepository extends StateNotifier<List<AttendanceRecord>> {
     state = _box.values.cast<AttendanceRecord>().toList();
   }
 
+  Future<void> clearAll() async {
+    await _box.clear();
+    state = _box.values.cast<AttendanceRecord>().toList();
+  }
+
   List<AttendanceRecord> recordsForSubject(String subjectId) {
     return state
         .where((record) => record.subjectId == subjectId)
@@ -69,14 +74,26 @@ class AttendanceRepository extends StateNotifier<List<AttendanceRecord>> {
     if (records.isEmpty) {
       return 100;
     }
-  final attended = records
+    // read mass bunk rule from settings box (defaults to 'present')
+    String massRule = Hive.box(settingsBoxName).get('mass_bunk_rule') as String? ?? 'present';
+    final attended = records
     .where((record) =>
       record.status == AttendanceStatus.present ||
       record.status == AttendanceStatus.extraClass)
     .length;
-    final total = records
-        .where((record) => record.status != AttendanceStatus.noClass)
-        .length;
+    // compute total (held) respecting mass bunk rule
+    int total = 0;
+    for (final r in records) {
+      if (r.status == AttendanceStatus.noClass) continue;
+      if (r.status == AttendanceStatus.massBunk) {
+        if (massRule == 'cancelled') {
+          continue; // don't count
+        }
+        total += 1;
+      } else {
+        total += 1;
+      }
+    }
     if (total == 0) {
       return 100;
     }
@@ -85,29 +102,44 @@ class AttendanceRepository extends StateNotifier<List<AttendanceRecord>> {
 
   Map<String, int> summaryForSubject(String subjectId) {
     final records = recordsForSubject(subjectId);
-    final held = records
-        .where((record) => record.status != AttendanceStatus.noClass)
-        .length;
-  final attended = records
-    .where((record) =>
-      record.status == AttendanceStatus.present ||
-      record.status == AttendanceStatus.extraClass)
-    .length;
-  final missed = records
-    .where((record) =>
-      record.status == AttendanceStatus.absent ||
-      record.status == AttendanceStatus.massBunk)
-    .length;
-  final extraClasses = records
-    .where((record) => record.status == AttendanceStatus.extraClass)
-    .length;
+    // read mass bunk rule
+    String massRule = Hive.box(settingsBoxName).get('mass_bunk_rule') as String? ?? 'present';
+    int held = 0;
+    int attended = 0;
+    int missed = 0;
+    int extraClasses = 0;
+    for (final r in records) {
+      if (r.status == AttendanceStatus.noClass) continue;
+      if (r.status == AttendanceStatus.massBunk) {
+        if (massRule == 'cancelled') {
+          continue; // not counted
+        } else if (massRule == 'present') {
+          held += 1;
+          attended += 1;
+        } else if (massRule == 'absent') {
+          held += 1;
+          missed += 1;
+        }
+      } else {
+        held += 1;
+        if (r.status == AttendanceStatus.present || r.status == AttendanceStatus.extraClass) {
+          attended += 1;
+        }
+        if (r.status == AttendanceStatus.absent) {
+          missed += 1;
+        }
+        if (r.status == AttendanceStatus.extraClass) {
+          extraClasses += 1;
+        }
+      }
+    }
     return {
       'held': held,
       'attended': attended,
       'missed': missed,
       'extra': extraClasses,
     };
-  }
+   }
 
   bool _isSameDay(DateTime a, DateTime b) {
     return a.year == b.year && a.month == b.month && a.day == b.day;

@@ -49,6 +49,11 @@ class SubjectRepository extends StateNotifier<List<Subject>> {
     state = _box.values.cast<Subject>().toList();
   }
 
+  Future<void> clearAll() async {
+    await _box.clear();
+    state = _box.values.cast<Subject>().toList();
+  }
+
   Subject? byId(String id) {
     for (final subject in state) {
       if (subject.id == id) {
