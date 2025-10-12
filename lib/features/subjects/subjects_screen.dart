@@ -8,6 +8,7 @@ import '../../models/subject.dart';
 import '../../providers.dart';
 import 'subject_detail_page.dart';
 import '../attendance/add_past_attendance_sheet.dart';
+import '../../constants/app_colors.dart';
 
 class SubjectsScreen extends ConsumerWidget {
   const SubjectsScreen({super.key});
@@ -18,15 +19,17 @@ class SubjectsScreen extends ConsumerWidget {
     final attendance = ref.watch(attendanceProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6FB),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Subjects'),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showSubjectSheet(context, ref),
-        label: const Text('Add Subject'),
-        icon: const Icon(Icons.add_rounded),
-      ),
+      floatingActionButton: subjects.isEmpty
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () => _showSubjectSheet(context, ref),
+              label: const Text('Add Subject'),
+              icon: const Icon(Icons.add_rounded),
+            ),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: subjects.isEmpty
@@ -72,7 +75,7 @@ class SubjectsScreen extends ConsumerWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(colors: [Color(0xFF4F8EF7), Color(0xFF2B6CE4)]),
+                            gradient: const LinearGradient(colors: [AppColors.gradientStart, AppColors.gradientEnd]),
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 6))],
                           ),
@@ -145,25 +148,15 @@ class SubjectsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 20),
           SizedBox(
-            width: 220,
-            height: 48,
-            child: ElevatedButton(
-              onPressed: () => _showSubjectSheet(context, ref),
-              style: ButtonStyle(
-                shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                padding: WidgetStateProperty.all(const EdgeInsets.symmetric(horizontal: 20)),
-                backgroundColor: WidgetStateProperty.resolveWith((states) => null),
-                elevation: WidgetStateProperty.all(6),
-              ),
-              child: Ink(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(colors: [Color(0xFF4F8EF7), Color(0xFF2B6CE4)]),
-                  borderRadius: BorderRadius.all(Radius.circular(12)),
-                ),
-                child: Container(
-                  alignment: Alignment.center,
-                  child: const Text('Add Your First Subject', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                ),
+            width: double.infinity,
+              child: SizedBox(
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed: () => _showSubjectSheet(context, ref),
+                icon: const Icon(Icons.add_rounded, size: 20),
+                label: const Text('Add your first subject', style: TextStyle(fontWeight: FontWeight.w600)),
+                // use app-wide ElevatedButton theme for colors and elevation
+                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 20), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
               ),
             ),
           ),
@@ -184,7 +177,7 @@ class SubjectsScreen extends ConsumerWidget {
     final creditsController = TextEditingController(
       text: subject != null ? subject.credits.toString() : '3',
     );
-    String selectedColor = subject?.color ?? '#0D47A1';
+  String selectedColor = subject?.color ?? '#00897B';
 
     await showModalBottomSheet<void>(
       context: context,
@@ -253,7 +246,7 @@ class SubjectsScreen extends ConsumerWidget {
                       children: [
                         // 8 selectable color squares
                         ...[
-                          const Color(0xFF4F8EF7), // blue
+                          AppColors.gradientStart, // teal
                           const Color(0xFF34C759), // green
                           const Color(0xFF8E44FF), // purple
                           const Color(0xFFFF8C42), // orange
@@ -334,7 +327,7 @@ class SubjectsScreen extends ConsumerWidget {
                           if (context.mounted) Navigator.of(context).pop();
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF4F8EF7),
+                          backgroundColor: AppColors.primary,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         child: Text(subject == null ? 'Add Subject' : 'Update Subject', style: const TextStyle(fontWeight: FontWeight.w600)),

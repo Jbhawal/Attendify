@@ -25,6 +25,7 @@ class AttendanceRepository extends StateNotifier<List<AttendanceRecord>> {
     required String subjectId,
     required DateTime date,
     required AttendanceStatus status,
+    int count = 1,
     String? notes,
   }) async {
     final normalizedDate = DateTime(date.year, date.month, date.day);
@@ -37,7 +38,7 @@ class AttendanceRepository extends StateNotifier<List<AttendanceRecord>> {
     if (existing.id.isNotEmpty) {
       await _box.put(
         existing.id,
-        existing.copyWith(status: status, notes: notes, date: normalizedDate),
+        existing.copyWith(status: status, count: count, notes: notes, date: normalizedDate),
       );
     } else {
       final record = AttendanceRecord(
@@ -45,6 +46,7 @@ class AttendanceRepository extends StateNotifier<List<AttendanceRecord>> {
         subjectId: subjectId,
         date: normalizedDate,
         status: status,
+        count: count,
         notes: notes,
       );
       await _box.put(record.id, record);
@@ -77,10 +79,8 @@ class AttendanceRepository extends StateNotifier<List<AttendanceRecord>> {
     // read mass bunk rule from settings box (defaults to 'present')
     String massRule = Hive.box(settingsBoxName).get('mass_bunk_rule') as String? ?? 'present';
     final attended = records
-    .where((record) =>
-      record.status == AttendanceStatus.present ||
-      record.status == AttendanceStatus.extraClass)
-    .length;
+        .where((record) => record.status == AttendanceStatus.present || record.status == AttendanceStatus.extraClass)
+        .fold<int>(0, (acc, r) => acc + r.count);
     // compute total (held) respecting mass bunk rule
     int total = 0;
     for (final r in records) {
@@ -89,9 +89,9 @@ class AttendanceRepository extends StateNotifier<List<AttendanceRecord>> {
         if (massRule == 'cancelled') {
           continue; // don't count
         }
-        total += 1;
+        total += r.count;
       } else {
-        total += 1;
+        total += r.count;
       }
     }
     if (total == 0) {
@@ -114,22 +114,22 @@ class AttendanceRepository extends StateNotifier<List<AttendanceRecord>> {
         if (massRule == 'cancelled') {
           continue; // not counted
         } else if (massRule == 'present') {
-          held += 1;
-          attended += 1;
+          held += r.count;
+          attended += r.count;
         } else if (massRule == 'absent') {
-          held += 1;
-          missed += 1;
+          held += r.count;
+          missed += r.count;
         }
       } else {
-        held += 1;
+        held += r.count;
         if (r.status == AttendanceStatus.present || r.status == AttendanceStatus.extraClass) {
-          attended += 1;
+          attended += r.count;
         }
         if (r.status == AttendanceStatus.absent) {
-          missed += 1;
+          missed += r.count;
         }
         if (r.status == AttendanceStatus.extraClass) {
-          extraClasses += 1;
+          extraClasses += r.count;
         }
       }
     }

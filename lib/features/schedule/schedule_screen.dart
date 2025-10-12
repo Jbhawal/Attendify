@@ -191,6 +191,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     final startController = TextEditingController(text: _formatTimeOfDay(startTime));
     final endController = TextEditingController(text: _formatTimeOfDay(endTime));
     final venueController = TextEditingController(text: entry?.venue ?? '');
+  final classesController = TextEditingController(text: entry == null ? '' : '');
 
     await showModalBottomSheet<void>(
       context: context,
@@ -259,6 +260,12 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                   ),
                   const SizedBox(height: 12),
                   TextField(controller: venueController, decoration: _inputDecoration('Venue / Room')),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: classesController,
+                    keyboardType: TextInputType.number,
+                    decoration: _inputDecoration('Number of classes'),
+                  ),
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
@@ -274,8 +281,17 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                         }
                         final formattedStart = _formatTimeOfDay(startTime);
                         final formattedEnd = _formatTimeOfDay(endTime);
+                        // No auto-attendance creation. Save planned total classes for the subject.
                         if (entry == null) {
-                          await ref.read(scheduleProvider.notifier).addEntry(subjectId: selectedSubjectId!, dayOfWeek: day, startTime: formattedStart, endTime: formattedEnd, venue: venueController.text);
+                          final num = int.tryParse(classesController.text) ?? 0;
+                          if (num <= 0) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a positive number of classes.')));
+                            return;
+                          }
+                          final scheduleId = await ref.read(scheduleProvider.notifier).addEntry(subjectId: selectedSubjectId!, dayOfWeek: day, startTime: formattedStart, endTime: formattedEnd, venue: venueController.text);
+                          // store per-schedule class count in settings so attendance marking can use it
+                          await ref.read(settingsProvider.notifier).setScheduleClassCount(scheduleId, num);
+                          if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Saved class count ($num) for the schedule.')));
                         } else {
                           await ref.read(scheduleProvider.notifier).updateEntry(entry.copyWith(subjectId: selectedSubjectId!, dayOfWeek: day, startTime: formattedStart, endTime: formattedEnd, venue: venueController.text));
                         }

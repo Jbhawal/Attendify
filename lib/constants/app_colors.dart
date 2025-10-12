@@ -1,21 +1,38 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  static const gradientStart = Color(0xFF3A7BD5);
-  static const gradientEnd = Color(0xFF3A6073);
+  // Primary brand colors (teal-first) for the app chrome
+  static const primary = Color(0xFF00897B); // teal 600
+  static const primaryVariant = Color(0xFF00695C); // darker teal
+  static const secondary = Color(0xFF26A69A); // lighter teal/green accent
 
-  static const safeGreen = Color(0xFF2ECC71);
-  static const warningYellow = Color(0xFFF1C40F);
-  static const dangerRed = Color(0xFFE74C3C);
+  // Gradient used in some components (teal -> green)
+  static const gradientStart = Color(0xFF00897B);
+  static const gradientEnd = Color(0xFF26A69A);
 
+  // Semantic colors for attendance states
+  static const presentGreen = Color(0xFF2ECC71);
+  static const absentRed = Color(0xFFE74C3C);
+  static const lateAmber = Color(0xFFF1C40F);
+
+  // Legacy aliases (kept for compatibility with existing widgets)
+  static const safeGreen = presentGreen;
+  static const warningYellow = lateAmber;
+  static const dangerRed = absentRed;
+
+  // Neutral palette for cards and backgrounds
+  static const background = Color(0xFFF4F6FB);
+  static const surface = Color(0xFFFFFFFF);
+
+  // Subject palette (teal/green focused choices)
   static const List<Color> subjectPalette = [
-    Color(0xFF0D47A1),
-    Color(0xFF1565C0),
-    Color(0xFF1976D2),
-    Color(0xFF1E88E5),
-    Color(0xFF2196F3),
-    Color(0xFF42A5F5),
-    Color(0xFF64B5F6),
-    Color(0xFF90CAF9),
+    Color(0xFF00695C), // dark teal
+    Color(0xFF00796B),
+  Color(0xFF00897B),
+  Color(0xFF009688),
+  Color(0xFF26A69A),
+    Color(0xFF4DB6AC),
+    Color(0xFF80CBC4),
+    Color(0xFFB2DFDB),
   ];
 }

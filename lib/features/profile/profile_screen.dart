@@ -1,10 +1,10 @@
+import 'dart:convert';
+import 'dart:math';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'dart:math';
-import 'dart:convert';
-import 'package:flutter/services.dart' show rootBundle;
-
 import '../../providers.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -19,7 +19,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   String _name = '';
   String? _photoUrl;
 
-  Future<void> _editTextDialog({required String title, String? initial, required Function(String?) onSave}) async {
+  Future<void> _editTextDialog({required String title, String? initial, required Future<void> Function(String?) onSave}) async {
     final controller = TextEditingController(text: initial ?? '');
     final result = await showDialog<String?>(
       context: context,
@@ -51,7 +51,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     });
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6FB),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(title: const Text('Profile')),
       body: settingsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -74,14 +74,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                          GestureDetector(
+                      GestureDetector(
                         onTap: () async {
-                          // Show picker immediately; load manifest inside the sheet to avoid using BuildContext across async gaps
+                          // Use builder-provided context inside the bottom sheet to avoid
+                          // using outer BuildContext after await (use_build_context_synchronously).
                           final picked = await showModalBottomSheet<String?>(
                             context: context,
                             isScrollControlled: true,
                             shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-                            builder: (ctx) {
+                            builder: (sheetCtx) {
                               return FutureBuilder<List<String>>(
                                 future: () async {
                                   try {
@@ -97,7 +98,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                     return <String>[];
                                   }
                                 }(),
-                                builder: (context, snap) {
+                                builder: (gridCtx, snap) {
                                   if (snap.connectionState == ConnectionState.waiting) return const SizedBox(height: 220, child: Center(child: CircularProgressIndicator()));
                                   final avatars = snap.data ?? <String>[];
                                   if (avatars.isEmpty) {
@@ -112,7 +113,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                             const SizedBox(height: 8),
                                             const Text('Place avatar images in assets/avatars/ and run flutter pub get', textAlign: TextAlign.center),
                                             const SizedBox(height: 12),
-                                            FilledButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Close')),
+                                            FilledButton(onPressed: () => Navigator.of(sheetCtx).pop(), child: const Text('Close')),
                                           ],
                                         ),
                                       ),
@@ -124,31 +125,31 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   items.add(GestureDetector(
                                     onTap: () {
                                       final rnd = avatars[Random().nextInt(avatars.length)];
-                                      Navigator.of(ctx).pop(rnd);
+                                      Navigator.of(sheetCtx).pop(rnd);
                                     },
                                     child: Padding(
                                       padding: const EdgeInsets.all(8.0),
                                       child: CircleAvatar(
                                         radius: 36,
-                                        backgroundColor: Colors.white,
+                                        backgroundColor: Theme.of(sheetCtx).colorScheme.surface,
                                         child: Column(
                                           mainAxisAlignment: MainAxisAlignment.center,
-                                          children: const [
-                                            Icon(Icons.shuffle, size: 28, color: Colors.deepPurple),
-                                            SizedBox(height: 6),
-                                            Text('Random', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                          children: [
+                                            Icon(Icons.shuffle, size: 28, color: Theme.of(sheetCtx).colorScheme.secondary),
+                                            const SizedBox(height: 6),
+                                            const Text('Random', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                                           ],
                                         ),
                                       ),
                                     ),
                                   ));
                                   items.addAll(avatars.map((path) => GestureDetector(
-                                        onTap: () => Navigator.of(ctx).pop(path),
+                                        onTap: () => Navigator.of(sheetCtx).pop(path),
                                         child: Padding(
                                           padding: const EdgeInsets.all(8.0),
                                           child: CircleAvatar(
                                             radius: 36,
-                                            backgroundColor: Colors.white,
+                                            backgroundColor: Theme.of(sheetCtx).colorScheme.surface,
                                             child: ClipOval(
                                               child: path.endsWith('.svg')
                                                   ? SvgPicture.asset(path, width: 72, height: 72, fit: BoxFit.cover)
@@ -177,6 +178,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           );
 
                           if (picked != null) {
+                            // We already used sheetCtx for Navigator; here we still need to
+                            // update state and call provider. Use mounted check before
+                            // calling setState to be safe.
                             await ref.read(settingsProvider.notifier).setProfilePhoto(picked);
                             if (!mounted) return;
                             setState(() => _photoUrl = picked);
@@ -187,7 +191,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           children: [
                             CircleAvatar(
                               radius: 56,
-                              backgroundColor: Colors.white,
+                              backgroundColor: Theme.of(context).colorScheme.surface,
                               child: ClipOval(
                                 child: (_photoUrl != null && _photoUrl!.isNotEmpty)
                                     ? (_photoUrl!.startsWith('assets/')
@@ -205,7 +209,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               child: Container(
                                 height: 36,
                                 width: 36,
-                                decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                                decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, shape: BoxShape.circle),
                                 child: Icon(Icons.edit, size: 18, color: Theme.of(context).colorScheme.primary),
                               ),
                             ),
@@ -244,8 +248,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
                 const SizedBox(height: 20),
 
-                // Rest of settings (reminder etc.)
-                const SizedBox(height: 8),
+                // Reminder toggle
                 SwitchListTile(
                   value: ref.watch(settingsProvider).when(data: (m) => (m['reminders_enabled'] as bool?) ?? false, loading: () => false, error: (_, __) => false),
                   onChanged: (v) async {
@@ -256,61 +259,41 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   subtitle: const Text('Get a daily notification to mark today\'s attendance'),
                 ),
 
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Reminder time'),
-                  subtitle: Text(ref.watch(settingsProvider).when(data: (m) => (m['reminder_time'] as String?) ?? '20:00', loading: () => '20:00', error: (_, __) => '20:00')),
-                  trailing: FilledButton(
-                    onPressed: () async {
-                      final current = _parseTime(ref.read(settingsProvider).value?['reminder_time'] as String?);
-                      final picked = await showTimePicker(context: context, initialTime: current ?? const TimeOfDay(hour: 20, minute: 0));
-                      if (picked != null) {
-                        await ref.read(settingsProvider.notifier).setReminderTime('${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}');
-                        setState(() {});
-                      }
-                    },
-                    child: const Text('Change'),
-                  ),
-                ),
+                const SizedBox(height: 8),
 
-                const SizedBox(height: 18),
-                const Divider(),
-                const SizedBox(height: 12),
+                // Clear local data
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.info_outline),
-                  title: const Text('App version'),
-                  subtitle: const Text('1.0.0'),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.delete_outline),
+                  leading: const Icon(Icons.delete_forever),
                   title: const Text('Clear local data'),
-                  subtitle: const Text('Remove subjects, schedule and attendance (keeps settings)'),
+                  subtitle: const Text('Remove all subjects, schedules and attendance data stored locally'),
                   onTap: () async {
-                    final messenger = ScaffoldMessenger.of(context);
-                    final confirmed = await showDialog<bool>(
+                    // Capture messenger before any awaits so we don't use the
+                    // widget BuildContext after an async gap.
+                    final messenger = ScaffoldMessenger.maybeOf(context);
+                    final confirmed = await showDialog<bool?>(
                       context: context,
                       builder: (ctx) => AlertDialog(
                         title: const Text('Clear local data?'),
-                        content: const Text('This will remove subjects, schedules and attendance stored locally. This cannot be undone.'),
+                        content: const Text('This action cannot be undone.'),
                         actions: [
                           TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
                           FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Clear')),
                         ],
                       ),
                     );
+
                     if (confirmed == true) {
                       await ref.read(subjectsProvider.notifier).clearAll();
                       await ref.read(scheduleProvider.notifier).clearAll();
                       await ref.read(attendanceProvider.notifier).clearAll();
-                      if (!mounted) return;
-                      messenger.showSnackBar(const SnackBar(content: Text('Local data cleared')));
+                      messenger?.showSnackBar(const SnackBar(content: Text('Local data cleared')));
                     }
                   },
                 ),
 
                 const SizedBox(height: 18),
+
                 // Mass bunk rule setting
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -362,13 +345,5 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  TimeOfDay? _parseTime(String? time) {
-    if (time == null) return null;
-    final parts = time.split(':');
-    if (parts.length != 2) return null;
-    final h = int.tryParse(parts[0]);
-    final m = int.tryParse(parts[1]);
-    if (h == null || m == null) return null;
-    return TimeOfDay(hour: h % 24, minute: m % 60);
-  }
+  // helper(s) intentionally removed
 }

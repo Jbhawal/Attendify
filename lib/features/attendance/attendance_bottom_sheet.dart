@@ -141,16 +141,19 @@ Future<void> showAttendanceBottomSheet({
                         );
                         return;
                       }
-                      await ref
-                          .read(attendanceProvider.notifier)
-                          .markAttendance(
-                            subjectId: item.subject.id,
-                            date: pickedDate,
-                            status: selectedStatus!,
-                            notes: notesController.text.isEmpty
-                                ? null
-                                : notesController.text,
-                          );
+            final settings = ref.read(settingsProvider).value ?? <String, dynamic>{};
+            final scheduleCount = settings['schedule_count_\${item.schedule.id}'] as int? ?? 1;
+            await ref
+              .read(attendanceProvider.notifier)
+              .markAttendance(
+              subjectId: item.subject.id,
+              date: pickedDate,
+              status: selectedStatus!,
+              count: scheduleCount,
+              notes: notesController.text.isEmpty
+                ? null
+                : notesController.text,
+              );
                       if (context.mounted) {
                         Navigator.of(context).pop();
                       }

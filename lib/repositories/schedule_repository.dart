@@ -19,7 +19,7 @@ class ScheduleRepository extends StateNotifier<List<ScheduleEntry>> {
     return ScheduleRepository(box);
   });
 
-  Future<void> addEntry({
+  Future<String> addEntry({
     required String subjectId,
     required int dayOfWeek,
     required String startTime,
@@ -36,6 +36,7 @@ class ScheduleRepository extends StateNotifier<List<ScheduleEntry>> {
     );
     await _box.put(entry.id, entry);
     state = _box.values.cast<ScheduleEntry>().toList();
+    return entry.id;
   }
 
   Future<void> updateEntry(ScheduleEntry entry) async {

@@ -73,6 +73,17 @@ class SettingsRepository extends StateNotifier<AsyncValue<Map<String, dynamic>>>
     await _load();
   }
 
+  /// Store per-schedule class count. If [count] is null, remove the entry.
+  Future<void> setScheduleClassCount(String scheduleId, int? count) async {
+    final key = 'schedule_count_\$scheduleId';
+    if (count == null) {
+      await _box.delete(key);
+    } else {
+      await _box.put(key, count);
+    }
+    await _load();
+  }
+
   String? get userName => state.value?['user_name'] as String?;
   String? get profilePhoto => state.value?['profile_photo'] as String?;
   String? get userEmail => state.value?['user_email'] as String?;

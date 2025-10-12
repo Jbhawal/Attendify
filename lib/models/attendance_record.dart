@@ -14,6 +14,7 @@ class AttendanceRecord {
     required this.subjectId,
     required this.date,
     required this.status,
+    this.count = 1,
     this.notes,
   });
 
@@ -21,6 +22,7 @@ class AttendanceRecord {
   final String subjectId;
   final DateTime date;
   final AttendanceStatus status;
+  final int count;
   final String? notes;
 
   AttendanceRecord copyWith({
@@ -28,6 +30,7 @@ class AttendanceRecord {
     String? subjectId,
     DateTime? date,
     AttendanceStatus? status,
+    int? count,
     String? notes,
   }) {
     return AttendanceRecord(
@@ -35,6 +38,7 @@ class AttendanceRecord {
       subjectId: subjectId ?? this.subjectId,
       date: date ?? this.date,
       status: status ?? this.status,
+      count: count ?? this.count,
       notes: notes ?? this.notes,
     );
   }
@@ -48,6 +52,7 @@ class AttendanceRecord {
         (value) => value.name == (map['status'] as String),
         orElse: () => AttendanceStatus.present,
       ),
+      count: map['count'] as int? ?? 1,
       notes: map['notes'] as String?,
     );
   }
@@ -58,6 +63,7 @@ class AttendanceRecord {
       'subject_id': subjectId,
       'date': date.toIso8601String(),
       'status': status.name,
+      'count': count,
       'notes': notes,
     };
   }
@@ -74,6 +80,7 @@ class AttendanceRecordAdapter extends TypeAdapter<AttendanceRecord> {
       subjectId: reader.readString(),
       date: DateTime.fromMillisecondsSinceEpoch(reader.readInt(), isUtc: true).toLocal(),
       status: AttendanceStatus.values[reader.readInt()],
+      count: reader.readInt(),
       notes: reader.readBool() ? reader.readString() : null,
     );
   }
@@ -84,7 +91,8 @@ class AttendanceRecordAdapter extends TypeAdapter<AttendanceRecord> {
       ..writeString(obj.id)
       ..writeString(obj.subjectId)
       ..writeInt(obj.date.toUtc().millisecondsSinceEpoch)
-      ..writeInt(obj.status.index);
+      ..writeInt(obj.status.index)
+      ..writeInt(obj.count);
     if (obj.notes == null) {
       writer.writeBool(false);
     } else {

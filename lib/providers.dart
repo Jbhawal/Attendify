@@ -87,20 +87,15 @@ final overallAttendanceProvider = Provider<double>((ref) {
 
 final atRiskSubjectsProvider = Provider<List<Subject>>((ref) {
   final subjects = ref.watch(subjectsProvider);
-  final attendance = ref.watch(attendanceProvider);
+  // watch attendance list so provider refreshes when records change
+  ref.watch(attendanceProvider);
+  final attendanceRepo = ref.read(attendanceProvider.notifier);
 
   return subjects.where((subject) {
-    final records = attendance
-        .where((record) => record.subjectId == subject.id)
-        .where((record) => record.status != AttendanceStatus.noClass)
-        .toList();
-    if (records.isEmpty) {
-      return false;
-    }
-    final attended = records
-        .where((record) => record.status == AttendanceStatus.present)
-        .length;
-    final percentage = attended / records.length * 100;
+    // Use the repository's percentage calculation which respects mass-bunk rule
+    final percentage = attendanceRepo.percentageForSubject(subject.id);
+    // If there are no held classes percentageForSubject returns 100, so
+    // subjects with no records won't be considered at-risk.
     return percentage < 75;
   }).toList();
 });
