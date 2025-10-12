@@ -19,7 +19,7 @@ class SubjectRepository extends StateNotifier<List<Subject>> {
     },
   );
 
-  Future<void> addSubject({
+  Future<String> addSubject({
     required String name,
     required String code,
     required String professor,
@@ -37,6 +37,7 @@ class SubjectRepository extends StateNotifier<List<Subject>> {
     );
     await _box.put(subject.id, subject);
     state = _box.values.cast<Subject>().toList();
+    return subject.id;
   }
 
   Future<void> updateSubject(Subject updated) async {

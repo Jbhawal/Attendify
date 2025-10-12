@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../models/attendance_record.dart';
 import '../../models/dashboard_item.dart';
@@ -12,6 +13,7 @@ Future<void> showAttendanceBottomSheet({
 }) async {
   final notesController = TextEditingController(text: item.record?.notes ?? '');
   AttendanceStatus? selectedStatus = item.record?.status;
+  DateTime pickedDate = ref.read(selectedDateProvider);
 
   await showModalBottomSheet<void>(
     context: context,
@@ -20,7 +22,7 @@ Future<void> showAttendanceBottomSheet({
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
-    builder: (context) {
+      builder: (context) {
       final bottomInset = MediaQuery.of(context).viewInsets.bottom;
       return StatefulBuilder(
         builder: (context, setModalState) {
@@ -49,6 +51,36 @@ Future<void> showAttendanceBottomSheet({
                               ?.copyWith(fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Text(
+                              DateFormat('EEE, dd MMM yyyy').format(pickedDate),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelMedium
+                                  ?.copyWith(color: Colors.grey[700]),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              tooltip: 'Pick date',
+                              icon: const Icon(Icons.calendar_today_outlined, size: 18),
+                              onPressed: () async {
+                                final now = DateTime.now();
+                                final initial = pickedDate;
+                                final chosen = await showDatePicker(
+                                  context: context,
+                                  initialDate: initial,
+                                  firstDate: DateTime(now.year - 5),
+                                  lastDate: DateTime(now.year + 1),
+                                );
+                                if (chosen != null) {
+                                  setModalState(() => pickedDate = DateTime(chosen.year, chosen.month, chosen.day));
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
                         Text(
                           '${item.schedule.startTime} · ${item.schedule.venue}',
                           style: Theme.of(context)
@@ -113,7 +145,7 @@ Future<void> showAttendanceBottomSheet({
                           .read(attendanceProvider.notifier)
                           .markAttendance(
                             subjectId: item.subject.id,
-                            date: ref.read(selectedDateProvider),
+                            date: pickedDate,
                             status: selectedStatus!,
                             notes: notesController.text.isEmpty
                                 ? null

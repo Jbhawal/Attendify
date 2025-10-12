@@ -14,6 +14,7 @@ class AnalyticsScreen extends ConsumerWidget {
     final subjects = ref.watch(subjectsProvider);
     final attendance = ref.watch(attendanceProvider);
     final attendanceRepo = ref.read(attendanceProvider.notifier);
+    final settings = ref.watch(settingsProvider).value ?? <String, dynamic>{};
 
     final overview = _calculateOverview(subjects, attendance);
   final riskBuckets = _calculateRiskBuckets(subjects, attendanceRepo);
@@ -35,17 +36,20 @@ class AnalyticsScreen extends ConsumerWidget {
             if (subjects.isEmpty) _emptyState(context) else ...[
               const Text('Subject-wise', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
               const SizedBox(height: 12),
-              ...subjects.map((s) {
-                final summary = attendanceRepo.summaryForSubject(s.id);
-                final percent = attendanceRepo.percentageForSubject(s.id);
-                return _SubjectAnalyticsCard(
-                  subject: s,
-                  percentage: percent,
-                  summary: summary,
-                  canMiss: _calculateCanMiss(summary['held'] ?? 0, summary['attended'] ?? 0),
-                  needToAttend: _calculateNeedToAttend(summary['held'] ?? 0, summary['attended'] ?? 0),
-                );
-              }),
+                ...subjects.map((s) {
+                  final summary = attendanceRepo.summaryForSubject(s.id);
+                  final percent = attendanceRepo.percentageForSubject(s.id);
+                  final plannedKey = 'subject_total_\${s.id}';
+                  final planned = settings[plannedKey] as int?;
+                  return _SubjectAnalyticsCard(
+                    subject: s,
+                    percentage: percent,
+                    summary: summary,
+                    plannedTotal: planned,
+                    canMiss: _calculateCanMiss(summary['held'] ?? 0, summary['attended'] ?? 0, planned: planned),
+                    needToAttend: _calculateNeedToAttend(summary['held'] ?? 0, summary['attended'] ?? 0, planned: planned),
+                  );
+                }),
               // removed unnecessary .toList() in spread
             ],
           ],
@@ -106,13 +110,30 @@ class AnalyticsScreen extends ConsumerWidget {
 
 
 
-  int _calculateCanMiss(int held, int attended) {
+  int _calculateCanMiss(int held, int attended, {int? planned}) {
+    // If planned total is provided, compute how many of the remaining classes can be missed
+    if (planned != null && planned > held) {
+      final remaining = planned - held;
+      // target attended to maintain 75% at the end of planned classes
+      final targetAttended = (0.75 * planned).ceil();
+      final neededNow = (targetAttended - attended).clamp(0, planned);
+      // how many of remaining classes can be missed = remaining - neededNow
+      return (remaining - neededNow).clamp(0, 999);
+    }
+    // fallback: simple immediate can-miss calculation (how many upcoming classes can be missed without dropping below 75%)
     if (held == 0) return 0;
     final limit = attended / 0.75;
     return (limit - held).floor().clamp(0, 999);
   }
 
-  int _calculateNeedToAttend(int held, int attended) {
+  int _calculateNeedToAttend(int held, int attended, {int? planned}) {
+    // If planned total provided, compute how many more classes must be attended in the remaining planned classes
+    if (planned != null && planned > held) {
+      final remaining = planned - held;
+      final targetAttended = (0.75 * planned).ceil();
+      final need = (targetAttended - attended).clamp(0, remaining);
+      return need;
+    }
     if (held == 0) return 0;
     if (attended / held >= 0.75) return 0;
     final deficit = (0.75 * held) - attended;
@@ -338,19 +359,20 @@ class _ConsistencyCard extends StatelessWidget {
 }
 
 class _SubjectAnalyticsCard extends StatelessWidget {
-  const _SubjectAnalyticsCard({required this.subject, required this.percentage, required this.summary, required this.canMiss, required this.needToAttend});
+  const _SubjectAnalyticsCard({required this.subject, required this.percentage, required this.summary, required this.canMiss, required this.needToAttend, this.plannedTotal});
 
   final Subject subject;
   final double percentage;
   final Map<String, int> summary;
   final int canMiss;
   final int needToAttend;
+  final int? plannedTotal;
 
   @override
   Widget build(BuildContext context) {
-    final color = Color(int.parse('0xff${subject.color.replaceAll('#', '')}'));
-    final statusColor = percentage >= 85 ? Colors.green : percentage >= 75 ? Colors.orange : Colors.redAccent;
-
+  final color = Color(int.parse('0xff${subject.color.replaceAll('#', '')}'));
+  final held = summary['held'] ?? 0;
+  final statusColor = held == 0 ? Colors.grey : (percentage >= 85 ? Colors.green : percentage >= 75 ? Colors.orange : Colors.redAccent);
     return ClipRRect(
       borderRadius: BorderRadius.circular(18),
       child: Container(
@@ -383,17 +405,29 @@ class _SubjectAnalyticsCard extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text('By ${subject.professor}', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
                 ])),
-                Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)), child: Text('${percentage.toStringAsFixed(1)}%', style: TextStyle(color: statusColor, fontWeight: FontWeight.w600))),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)),
+                  child: held == 0
+                      ? Text('No record', style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w600))
+                      : Text('${percentage.toStringAsFixed(1)}%', style: TextStyle(color: statusColor, fontWeight: FontWeight.w600)),
+                ),
               ]),
             ),
             const SizedBox(height: 12),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Wrap(spacing: 16, runSpacing: 16, children: [
-                _chip('Held', summary['held'] ?? 0, Colors.indigo),
-                _chip('Attended', summary['attended'] ?? 0, Colors.green),
-                _chip('Missed', summary['missed'] ?? 0, Colors.redAccent),
-                _chip('Extra', summary['extra'] ?? 0, Colors.deepPurple),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Wrap(spacing: 16, runSpacing: 16, children: [
+                  _chip('Held', summary['held'] ?? 0, Colors.indigo),
+                  _chip('Attended', summary['attended'] ?? 0, Colors.green),
+                  _chip('Missed', summary['missed'] ?? 0, Colors.redAccent),
+                  _chip('Extra', summary['extra'] ?? 0, Colors.deepPurple),
+                ]),
+                if (plannedTotal != null) ...[
+                  const SizedBox(height: 10),
+                  Text('Planned total: $plannedTotal', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                ]
               ]),
             ),
             const SizedBox(height: 16),

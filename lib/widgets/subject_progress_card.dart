@@ -100,13 +100,15 @@ class SubjectProgressCard extends StatelessWidget {
                   color: _statusColor(percentage).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: Text(
-                  '${percentage.toStringAsFixed(1)}%',
-                  style: TextStyle(
-                    color: _statusColor(percentage),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                child: held == 0
+                    ? Text('No record', style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w600))
+                    : Text(
+                        '${percentage.toStringAsFixed(1)}%',
+                        style: TextStyle(
+                          color: _statusColor(percentage),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
               ),
             ],
           ),
@@ -114,9 +116,9 @@ class SubjectProgressCard extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: LinearProgressIndicator(
-              value: (percentage / 100).clamp(0.0, 1.0),
+              value: held == 0 ? 0.0 : (percentage / 100).clamp(0.0, 1.0),
               backgroundColor: Colors.grey[200],
-              valueColor: AlwaysStoppedAnimation<Color>(_statusColor(percentage)),
+              valueColor: AlwaysStoppedAnimation<Color>(held == 0 ? Colors.grey : _statusColor(percentage)),
               minHeight: 10,
             ),
           ),

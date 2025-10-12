@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
+// intl not required in this file after removing history display
 // table_calendar is used in subject_detail_page.dart
 
 import '../../models/attendance_record.dart';
 import '../../models/subject.dart';
 import '../../providers.dart';
 import 'subject_detail_page.dart';
+import '../attendance/add_past_attendance_sheet.dart';
 
 class SubjectsScreen extends ConsumerWidget {
   const SubjectsScreen({super.key});
@@ -179,6 +180,7 @@ class SubjectsScreen extends ConsumerWidget {
     final nameController = TextEditingController(text: subject?.name ?? '');
     final codeController = TextEditingController(text: subject?.code ?? '');
     final professorController = TextEditingController(text: subject?.professor ?? '');
+    final plannedController = TextEditingController(text: subject == null ? '' : (ref.read(settingsProvider).value?['subject_total_\${subject.id}']?.toString() ?? ''));
     final creditsController = TextEditingController(
       text: subject != null ? subject.credits.toString() : '3',
     );
@@ -237,6 +239,12 @@ class SubjectsScreen extends ConsumerWidget {
                       keyboardType: TextInputType.number,
                     ),
                     const SizedBox(height: 16),
+                    _AttendifyTextField(
+                      controller: plannedController,
+                      label: 'Planned total classes (optional)',
+                      keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 12),
                     const Text('Theme color', style: TextStyle(fontWeight: FontWeight.w600)),
                     const SizedBox(height: 10),
                     Wrap(
@@ -300,13 +308,16 @@ class SubjectsScreen extends ConsumerWidget {
                           var credits = int.tryParse(creditsController.text) ?? 3;
                           credits = credits.clamp(1, 10);
                           if (subject == null) {
-                            await ref.read(subjectsProvider.notifier).addSubject(
+                            // add subject and get id so we can save planned classes
+                            final newId = await ref.read(subjectsProvider.notifier).addSubject(
                                   name: nameController.text,
                                   code: codeController.text,
                                   professor: professorController.text,
                                   credits: credits,
                                   color: selectedColor,
                                 );
+                            final planned = int.tryParse(plannedController.text);
+                            await ref.read(settingsProvider.notifier).setSubjectPlannedClasses(newId, planned);
                           } else {
                             await ref.read(subjectsProvider.notifier).updateSubject(
                                   subject.copyWith(
@@ -317,6 +328,8 @@ class SubjectsScreen extends ConsumerWidget {
                                     color: selectedColor,
                                   ),
                                 );
+                            final planned = int.tryParse(plannedController.text);
+                            await ref.read(settingsProvider.notifier).setSubjectPlannedClasses(subject.id, planned);
                           }
                           if (context.mounted) Navigator.of(context).pop();
                         },
@@ -402,7 +415,7 @@ class _SubjectCardState extends ConsumerState<_SubjectCard> {
     }
     final percentage = held == 0 ? 100 : (attended / held) * 100;
     final percentageLabel = held == 0 ? 'No record' : '${percentage.toStringAsFixed(1)}%';
-    final formatter = DateFormat('EEE, dd MMM');
+  // formatter removed — history list no longer displayed in expanded view
 
     // modern card with ribbon and larger layout; percentage badge will overlap ribbon
     return ClipRRect(
@@ -451,7 +464,7 @@ class _SubjectCardState extends ConsumerState<_SubjectCard> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               // first line: subject name (allow wrapping so full name is obvious)
-                              Text(subject.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                              Text(subject.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.black87)),
                               const SizedBox(height: 6),
                               // second line: teacher left, venue right (placeholder)
                               Row(
@@ -517,30 +530,30 @@ class _SubjectCardState extends ConsumerState<_SubjectCard> {
                             ),
                           ),
                           const SizedBox(height: 12),
-                          if (records.isEmpty)
-                            Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 6)]), child: const Text('No attendance recorded yet.'))
-                          else
-                            Container(
-                              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 6)]),
-                              child: ListView.separated(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                itemCount: records.length,
-                                separatorBuilder: (_, __) => const Divider(height: 1),
-                                itemBuilder: (context, index) {
-                                  final record = records[index];
-                                  final status = _statusLabel(record.status);
-                                  final statusColor = _statusColor(record.status);
-                                  return ListTile(
-                                    title: Text(formatter.format(record.date)),
-                                    subtitle: record.notes == null || record.notes!.isEmpty ? null : Text(record.notes!),
-                                    trailing: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)), child: Text(status, style: TextStyle(color: statusColor, fontWeight: FontWeight.w600))),
-                                  );
-                                },
+                          // Attendance history removed from expanded view. Keep navigation to detail and bulk-add action.
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton.icon(
+                                  onPressed: () {
+                                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => SubjectDetailPage(subject: subject, records: records)));
+                                  },
+                                  icon: const Icon(Icons.calendar_month_rounded),
+                                  label: const Text('See full class history'),
+                                ),
                               ),
-                            ),
-                          const SizedBox(height: 12),
-                          Align(alignment: Alignment.centerRight, child: TextButton.icon(onPressed: () { Navigator.of(context).push(MaterialPageRoute(builder: (_) => SubjectDetailPage(subject: subject, records: records))); }, icon: const Icon(Icons.calendar_month_rounded), label: const Text('See full class history'))),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton.icon(
+                                  onPressed: () => showAddPastAttendanceSheet(context: context, ref: ref, subject: subject),
+                                  icon: const Icon(Icons.history_toggle_off),
+                                  label: const Text('Add past attendance'),
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -587,35 +600,7 @@ class _SubjectCardState extends ConsumerState<_SubjectCard> {
     );
   }
 
-  String _statusLabel(AttendanceStatus status) {
-    switch (status) {
-      case AttendanceStatus.present:
-        return 'Present';
-      case AttendanceStatus.absent:
-        return 'Absent';
-      case AttendanceStatus.noClass:
-        return 'No class';
-      case AttendanceStatus.extraClass:
-        return 'Extra class';
-      case AttendanceStatus.massBunk:
-        return 'Mass bunk';
-    }
-  }
-
-  Color _statusColor(AttendanceStatus status) {
-    switch (status) {
-      case AttendanceStatus.present:
-        return Colors.green;
-      case AttendanceStatus.absent:
-        return Colors.redAccent;
-      case AttendanceStatus.noClass:
-        return Colors.blueGrey;
-      case AttendanceStatus.extraClass:
-        return Colors.deepPurple;
-      case AttendanceStatus.massBunk:
-        return Colors.orange;
-    }
-  }
+  // status label and color helpers removed — used only by the removed history list
 
 
 

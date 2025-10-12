@@ -61,6 +61,18 @@ class SettingsRepository extends StateNotifier<AsyncValue<Map<String, dynamic>>>
     await _load();
   }
 
+  /// Store or remove planned total classes for a subject.
+  /// If [total] is null, the entry is removed.
+  Future<void> setSubjectPlannedClasses(String subjectId, int? total) async {
+    final key = 'subject_total_\$subjectId';
+    if (total == null) {
+      await _box.delete(key);
+    } else {
+      await _box.put(key, total);
+    }
+    await _load();
+  }
+
   String? get userName => state.value?['user_name'] as String?;
   String? get profilePhoto => state.value?['profile_photo'] as String?;
   String? get userEmail => state.value?['user_email'] as String?;
