@@ -338,7 +338,7 @@ class SubjectsScreen extends ConsumerWidget {
   }
 }
 
-class _SubjectCard extends ConsumerWidget {
+class _SubjectCard extends ConsumerStatefulWidget {
   const _SubjectCard({
     required this.subject,
     required this.records,
@@ -352,7 +352,18 @@ class _SubjectCard extends ConsumerWidget {
   final VoidCallback onDelete;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_SubjectCard> createState() => _SubjectCardState();
+}
+
+class _SubjectCardState extends ConsumerState<_SubjectCard> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final subject = widget.subject;
+    final records = widget.records;
+    final onEdit = widget.onEdit;
+    final onDelete = widget.onDelete;
     final color = Color(int.parse('0xff${subject.color.replaceAll('#', '')}'));
     // read settings for mass bunk rule at render time
     final settingsAsync = ref.watch(settingsProvider);
@@ -396,140 +407,151 @@ class _SubjectCard extends ConsumerWidget {
     // modern card with ribbon and larger layout; percentage badge will overlap ribbon
     return ClipRRect(
       borderRadius: BorderRadius.circular(18),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 14, offset: const Offset(0, 8))],
-        ),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // ribbon with code inside (more compact)
-                Container(
-                  height: 36,
-                  decoration: BoxDecoration(gradient: LinearGradient(colors: [color, color.withValues(alpha: 0.9)])),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  child: Row(
-                    children: [
-                      // subject code sits in the ribbon now (no background bubble)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        child: Text(subject.code.toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14)),
-                      ),
-                      const Spacer(),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  child: Row(
-                    children: [
-                      // main content (three lines)
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // first line: subject name (allow wrapping so full name is obvious)
-                            Text(subject.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                            const SizedBox(height: 6),
-                            // second line: teacher left, venue right (placeholder)
-                            Row(
-                              children: [
-                                Expanded(child: Text(subject.professor.trim().isNotEmpty ? subject.professor : 'No teacher info', style: TextStyle(color: Colors.grey[700], fontSize: 14))),
-                                const SizedBox(width: 12),
-                                Text('No venue', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            // third line: credits
-                            Text('${subject.credits} credits', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-                            const SizedBox(height: 6),
-                            // bottom action row: percentage left, icons on the right (single-line)
-                            Row(
-                              children: [
-                                // percentage label on the left
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(16)),
-                                  child: Text(percentageLabel, style: const TextStyle(fontWeight: FontWeight.w700)),
-                                ),
-                                const Spacer(),
-                                IconButton(
-                                  onPressed: onEdit,
-                                  tooltip: 'Edit',
-                                  icon: const Icon(Icons.edit_rounded, size: 18),
-                                ),
-                                const SizedBox(width: 4),
-                                IconButton(
-                                  onPressed: onDelete,
-                                  tooltip: 'Delete',
-                                  icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                                ),
-                              ],
-                            ),
-                          ],
+      child: InkWell(
+        onTap: () => setState(() => _expanded = !_expanded),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 14, offset: const Offset(0, 8))],
+          ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ribbon with code inside (more compact)
+                  Container(
+                    height: 36,
+                    decoration: BoxDecoration(gradient: LinearGradient(colors: [color, color.withValues(alpha: 0.9)])),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    child: Row(
+                      children: [
+                        // subject code sits in the ribbon now (no background bubble)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          child: Text(subject.code.toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14)),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                // expanded content
-                Theme(
-                  data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                  child: ExpansionTile(
-                    childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                    title: const SizedBox.shrink(),
-                    trailing: const SizedBox.shrink(),
-                    children: [
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(12)),
-                        child: Row(
-                          children: [
-                            _infoChip('Attended', attended, Colors.green),
-                            const SizedBox(width: 12),
-                            _infoChip('Held', held, Colors.indigo),
-                            const SizedBox(width: 12),
-                            _infoChip('Extra', records.where((record) => record.status == AttendanceStatus.extraClass).length, Colors.deepPurple),
-                          ],
+                        const Spacer(),
+                        // show an expand/collapse chevron
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: Icon(_expanded ? Icons.expand_less : Icons.expand_more, color: Colors.white, size: 18),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      if (records.isEmpty)
-                        Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 6)]), child: const Text('No attendance recorded yet.'))
-                      else
-                        Container(
-                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 6)]),
-                          child: ListView.separated(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: records.length,
-                            separatorBuilder: (_, __) => const Divider(height: 1),
-                            itemBuilder: (context, index) {
-                              final record = records[index];
-                              final status = _statusLabel(record.status);
-                              final statusColor = _statusColor(record.status);
-                              return ListTile(
-                                title: Text(formatter.format(record.date)),
-                                subtitle: record.notes == null || record.notes!.isEmpty ? null : Text(record.notes!),
-                                trailing: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)), child: Text(status, style: TextStyle(color: statusColor, fontWeight: FontWeight.w600))),
-                              );
-                            },
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    child: Row(
+                      children: [
+                        // main content (three lines)
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // first line: subject name (allow wrapping so full name is obvious)
+                              Text(subject.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                              const SizedBox(height: 6),
+                              // second line: teacher left, venue right (placeholder)
+                              Row(
+                                children: [
+                                  Expanded(child: Text(subject.professor.trim().isNotEmpty ? subject.professor : 'No teacher info', style: TextStyle(color: Colors.grey[700], fontSize: 14))),
+                                  const SizedBox(width: 12),
+                                  Text('No venue', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              // third line: credits
+                              Text('${subject.credits} credits', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                              const SizedBox(height: 6),
+                              // bottom action row: percentage left, icons on the right (single-line)
+                              Row(
+                                children: [
+                                  // percentage label on the left
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(16)),
+                                    child: Text(percentageLabel, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                  ),
+                                  const Spacer(),
+                                  IconButton(
+                                    onPressed: onEdit,
+                                    tooltip: 'Edit',
+                                    icon: const Icon(Icons.edit_rounded, size: 18),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  IconButton(
+                                    onPressed: onDelete,
+                                    tooltip: 'Delete',
+                                    icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         ),
-                      const SizedBox(height: 12),
-                      Align(alignment: Alignment.centerRight, child: TextButton.icon(onPressed: () { Navigator.of(context).push(MaterialPageRoute(builder: (_) => SubjectDetailPage(subject: subject, records: records))); }, icon: const Icon(Icons.calendar_month_rounded), label: const Text('See full class history'))),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-            // percentage moved into bottom action row
-          ],
+
+                  // expanded area rendered conditionally
+                  AnimatedCrossFade(
+                    firstChild: const SizedBox.shrink(),
+                    secondChild: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                      child: Column(
+                        children: [
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(12)),
+                            child: Row(
+                              children: [
+                                _infoChip('Attended', attended, Colors.green),
+                                const SizedBox(width: 12),
+                                _infoChip('Held', held, Colors.indigo),
+                                const SizedBox(width: 12),
+                                _infoChip('Extra', records.where((record) => record.status == AttendanceStatus.extraClass).length, Colors.deepPurple),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          if (records.isEmpty)
+                            Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 6)]), child: const Text('No attendance recorded yet.'))
+                          else
+                            Container(
+                              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 6)]),
+                              child: ListView.separated(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: records.length,
+                                separatorBuilder: (_, __) => const Divider(height: 1),
+                                itemBuilder: (context, index) {
+                                  final record = records[index];
+                                  final status = _statusLabel(record.status);
+                                  final statusColor = _statusColor(record.status);
+                                  return ListTile(
+                                    title: Text(formatter.format(record.date)),
+                                    subtitle: record.notes == null || record.notes!.isEmpty ? null : Text(record.notes!),
+                                    trailing: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)), child: Text(status, style: TextStyle(color: statusColor, fontWeight: FontWeight.w600))),
+                                  );
+                                },
+                              ),
+                            ),
+                          const SizedBox(height: 12),
+                          Align(alignment: Alignment.centerRight, child: TextButton.icon(onPressed: () { Navigator.of(context).push(MaterialPageRoute(builder: (_) => SubjectDetailPage(subject: subject, records: records))); }, icon: const Icon(Icons.calendar_month_rounded), label: const Text('See full class history'))),
+                        ],
+                      ),
+                    ),
+                    crossFadeState: _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                    duration: const Duration(milliseconds: 220),
+                  ),
+                ],
+              ),
+              // percentage moved into bottom action row
+            ],
+          ),
         ),
       ),
     );

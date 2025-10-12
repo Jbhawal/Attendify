@@ -87,6 +87,52 @@ class _SubjectDetailPageState extends State<SubjectDetailPage> {
             Expanded(
               child: Column(
                 children: [
+                  // custom header: month title + Today icon (replaces the built-in format button like "2 weeks")
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          tooltip: 'Previous month',
+                          icon: const Icon(Icons.chevron_left),
+                          onPressed: () {
+                            setState(() {
+                              focusedDay = DateTime(focusedDay.year, focusedDay.month - 1, focusedDay.day);
+                            });
+                          },
+                        ),
+                        Expanded(
+                          child: Center(
+                            child: Text(
+                              DateFormat('MMMM yyyy').format(focusedDay),
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Next month',
+                          icon: const Icon(Icons.chevron_right),
+                          onPressed: () {
+                            setState(() {
+                              focusedDay = DateTime(focusedDay.year, focusedDay.month + 1, focusedDay.day);
+                            });
+                          },
+                        ),
+                        IconButton(
+                          tooltip: 'Today',
+                          icon: const Icon(Icons.today_outlined),
+                          onPressed: () {
+                            final now = DateTime.now();
+                            setState(() {
+                              focusedDay = _normalizeDate(now);
+                              selectedDay = _normalizeDate(now);
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+
                   TableCalendar<AttendanceRecord>(
                     firstDay: earliestDay.subtract(const Duration(days: 120)),
                     lastDay: latestDay.add(const Duration(days: 120)),
@@ -104,7 +150,7 @@ class _SubjectDetailPageState extends State<SubjectDetailPage> {
                       final key = _normalizeDate(day);
                       return events[key] ?? const <AttendanceRecord>[];
                     },
-                    headerVisible: true,
+                    headerVisible: false,
                     calendarStyle: CalendarStyle(
                       todayDecoration: BoxDecoration(
                         color: AppColors.gradientEnd.withValues(alpha: 0.15),
