@@ -28,49 +28,98 @@ class SubjectsScreen extends ConsumerWidget {
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
-    child: subjects.isEmpty
-      ? _emptyState(context, ref)
-            : ListView.separated(
-                itemCount: subjects.length,
-                padding: EdgeInsets.only(bottom: 120),
-                separatorBuilder: (_, __) => const SizedBox(height: 16),
-                itemBuilder: (context, index) {
-                  final subject = subjects[index];
-                  final records = attendance
-                      .where((record) => record.subjectId == subject.id)
-                      .toList()
-                    ..sort((a, b) => b.date.compareTo(a.date));
-                  return _SubjectCard(
-                    subject: subject,
-                    records: records,
-                    onEdit: () => _showSubjectSheet(context, ref, subject: subject),
-                    onDelete: () async {
-                      final confirmed = await showDialog<bool>(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Delete subject?'),
-                          content: Text(
-                            'Are you sure you want to delete ${subject.name}? '
-                            'All related schedules and attendance will remain until removed manually.',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(context).pop(false),
-                              child: const Text('Cancel'),
-                            ),
-                            FilledButton(
-                              onPressed: () => Navigator.of(context).pop(true),
-                              child: const Text('Delete'),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (confirmed ?? false) {
-                        await ref.read(subjectsProvider.notifier).deleteSubject(subject.id);
+        child: subjects.isEmpty
+            ? _emptyState(context, ref)
+            : Column(
+                children: [
+                  // Summary row: subject count + average attendance
+                  Builder(builder: (context) {
+                    // compute average attendance across subjects
+                    double totalPercent = 0;
+                    int countWithData = 0;
+                    for (final s in subjects) {
+                      final records = attendance.where((r) => r.subjectId == s.id && r.status != AttendanceStatus.noClass).toList();
+                      int held = 0, attended = 0;
+                      for (final r in records) {
+                        if (r.status == AttendanceStatus.massBunk) {
+                          // treat mass bunk as present by default
+                          held += 1;
+                          attended += 1;
+                        } else {
+                          held += 1;
+                          if (r.status == AttendanceStatus.present || r.status == AttendanceStatus.extraClass) attended += 1;
+                        }
                       }
-                    },
-                  );
-                },
+                      if (held > 0) {
+                        totalPercent += (attended / held) * 100;
+                        countWithData += 1;
+                      }
+                    }
+                    final avg = countWithData == 0 ? 0.0 : (totalPercent / countWithData);
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('${subjects.length} subjects', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700, fontSize: 18)),
+                              const SizedBox(height: 4),
+                              Text(countWithData == 0 ? 'No attendance data yet' : '$countWithData subjects with records', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600])),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(colors: [Color(0xFF4F8EF7), Color(0xFF2B6CE4)]),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 6))],
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.show_chart, size: 16, color: Colors.white),
+                              const SizedBox(width: 8),
+                              Text(countWithData == 0 ? 'No data' : '${avg.toStringAsFixed(1)}% avg', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  }),
+                  const SizedBox(height: 12),
+                  const SizedBox(height: 6),
+                  // Subject list
+                  Expanded(
+                    child: ListView.separated(
+                      itemCount: subjects.length,
+                      padding: const EdgeInsets.only(bottom: 120),
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final subject = subjects[index];
+                        final records = attendance.where((record) => record.subjectId == subject.id).toList()..sort((a, b) => b.date.compareTo(a.date));
+                        return _SubjectCard(
+                          subject: subject,
+                          records: records,
+                          onEdit: () => _showSubjectSheet(context, ref, subject: subject),
+                          onDelete: () async {
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Delete subject?'),
+                                content: Text('Are you sure you want to delete ${subject.name}? All related schedules and attendance will remain until removed manually.'),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+                                  FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Delete')),
+                                ],
+                              ),
+                            );
+                            if (confirmed ?? false) await ref.read(subjectsProvider.notifier).deleteSubject(subject.id);
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
       ),
     );
@@ -100,10 +149,10 @@ class SubjectsScreen extends ConsumerWidget {
             child: ElevatedButton(
               onPressed: () => _showSubjectSheet(context, ref),
               style: ButtonStyle(
-                shape: MaterialStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                padding: MaterialStateProperty.all(const EdgeInsets.symmetric(horizontal: 20)),
-                backgroundColor: MaterialStateProperty.resolveWith((states) => null),
-                elevation: MaterialStateProperty.all(6),
+                shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                padding: WidgetStateProperty.all(const EdgeInsets.symmetric(horizontal: 20)),
+                backgroundColor: WidgetStateProperty.resolveWith((states) => null),
+                elevation: WidgetStateProperty.all(6),
               ),
               child: Ink(
                 decoration: const BoxDecoration(
@@ -205,7 +254,7 @@ class SubjectsScreen extends ConsumerWidget {
                           const Color(0xFF5E35B1), // indigo
                           const Color(0xFF00BFA5), // teal
                         ].map((color) {
-                          final hex = '#${color.value.toRadixString(16).substring(2)}';
+                            final hex = '#${color.toARGB32().toRadixString(16).substring(2)}';
                           final isSelected = selectedColor == hex;
                           return GestureDetector(
                             onTap: () => setState(() => selectedColor = hex),
@@ -344,179 +393,142 @@ class _SubjectCard extends ConsumerWidget {
     final percentageLabel = held == 0 ? 'No record' : '${percentage.toStringAsFixed(1)}%';
     final formatter = DateFormat('EEE, dd MMM');
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(horizontal: 20),
-          childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-          leading: Container(
-            height: 48,
-            width: 48,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Center(
-              child: Text(
-                subject.code,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-          title: Text(
-            subject.name,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (subject.professor.trim().isNotEmpty)
-                Text(subject.professor, style: TextStyle(color: Colors.grey[700], fontSize: 13)),
-              const SizedBox(height: 4),
-              Text('${subject.credits} credits', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-            ],
-          ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.expand_more_rounded, color: Colors.grey),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Text(
-                  percentageLabel,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-              IconButton(
-                onPressed: onEdit,
-                icon: const Icon(Icons.edit_rounded),
-              ),
-              IconButton(
-                onPressed: onDelete,
-                icon: const Icon(Icons.delete_outline_rounded),
-              ),
-            ],
-          ),
+    // modern card with ribbon and larger layout; percentage badge will overlap ribbon
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 14, offset: const Offset(0, 8))],
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
           children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Row(
-                children: [
-                  _infoChip('Attended', attended, Colors.green),
-                  const SizedBox(width: 12),
-                  _infoChip('Held', held, Colors.indigo),
-                  const SizedBox(width: 12),
-                  _infoChip('Extra',
-                      records.where((record) => record.status == AttendanceStatus.extraClass).length,
-                      Colors.deepPurple),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            if (records.isEmpty)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.03),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ribbon with code inside (more compact)
+                Container(
+                  height: 36,
+                  decoration: BoxDecoration(gradient: LinearGradient(colors: [color, color.withValues(alpha: 0.9)])),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  child: Row(
+                    children: [
+                      // subject code sits in the ribbon now (no background bubble)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        child: Text(subject.code.toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14)),
+                      ),
+                      const Spacer(),
+                    ],
+                  ),
                 ),
-                child: const Text('No attendance recorded yet.'),
-              )
-            else ...[
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.03),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: records.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final record = records[index];
-                    final status = _statusLabel(record.status);
-                    final statusColor = _statusColor(record.status);
-                    return ListTile(
-                      title: Text(formatter.format(record.date)),
-                      subtitle: record.notes == null || record.notes!.isEmpty
-                          ? null
-                          : Text(record.notes!),
-                      trailing: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          status,
-                          style: TextStyle(
-                            color: statusColor,
-                            fontWeight: FontWeight.w600,
-                          ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: Row(
+                    children: [
+                      // main content (three lines)
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // first line: subject name (allow wrapping so full name is obvious)
+                            Text(subject.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                            const SizedBox(height: 6),
+                            // second line: teacher left, venue right (placeholder)
+                            Row(
+                              children: [
+                                Expanded(child: Text(subject.professor.trim().isNotEmpty ? subject.professor : 'No teacher info', style: TextStyle(color: Colors.grey[700], fontSize: 14))),
+                                const SizedBox(width: 12),
+                                Text('No venue', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            // third line: credits
+                            Text('${subject.credits} credits', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                            const SizedBox(height: 6),
+                            // bottom action row: percentage left, icons on the right (single-line)
+                            Row(
+                              children: [
+                                // percentage label on the left
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(16)),
+                                  child: Text(percentageLabel, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                ),
+                                const Spacer(),
+                                IconButton(
+                                  onPressed: onEdit,
+                                  tooltip: 'Edit',
+                                  icon: const Icon(Icons.edit_rounded, size: 18),
+                                ),
+                                const SizedBox(width: 4),
+                                IconButton(
+                                  onPressed: onDelete,
+                                  tooltip: 'Delete',
+                                  icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
-                    );
-                  },
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => SubjectDetailPage(subject: subject, records: records),
-                    ));
-                  },
-                  icon: const Icon(Icons.calendar_month_rounded),
-                  label: const Text('See full class history'),
+                // expanded content
+                Theme(
+                  data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                  child: ExpansionTile(
+                    childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                    title: const SizedBox.shrink(),
+                    trailing: const SizedBox.shrink(),
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(12)),
+                        child: Row(
+                          children: [
+                            _infoChip('Attended', attended, Colors.green),
+                            const SizedBox(width: 12),
+                            _infoChip('Held', held, Colors.indigo),
+                            const SizedBox(width: 12),
+                            _infoChip('Extra', records.where((record) => record.status == AttendanceStatus.extraClass).length, Colors.deepPurple),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      if (records.isEmpty)
+                        Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 6)]), child: const Text('No attendance recorded yet.'))
+                      else
+                        Container(
+                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 6)]),
+                          child: ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: records.length,
+                            separatorBuilder: (_, __) => const Divider(height: 1),
+                            itemBuilder: (context, index) {
+                              final record = records[index];
+                              final status = _statusLabel(record.status);
+                              final statusColor = _statusColor(record.status);
+                              return ListTile(
+                                title: Text(formatter.format(record.date)),
+                                subtitle: record.notes == null || record.notes!.isEmpty ? null : Text(record.notes!),
+                                trailing: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)), child: Text(status, style: TextStyle(color: statusColor, fontWeight: FontWeight.w600))),
+                              );
+                            },
+                          ),
+                        ),
+                      const SizedBox(height: 12),
+                      Align(alignment: Alignment.centerRight, child: TextButton.icon(onPressed: () { Navigator.of(context).push(MaterialPageRoute(builder: (_) => SubjectDetailPage(subject: subject, records: records))); }, icon: const Icon(Icons.calendar_month_rounded), label: const Text('See full class history'))),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
+            // percentage moved into bottom action row
           ],
         ),
       ),
@@ -619,3 +631,5 @@ class _AttendifyTextField extends StatelessWidget {
     );
   }
 }
+
+// Search functionality intentionally removed — placeholder kept for future filtering

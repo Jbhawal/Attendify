@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'dart:math';
+import 'dart:convert';
+import 'package:flutter/services.dart' show rootBundle;
 
 import '../../providers.dart';
 
@@ -73,18 +76,73 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     children: [
                           GestureDetector(
                         onTap: () async {
-                          // Open avatar picker with bundled cartoon avatars
-                          final avatars = List.generate(6, (i) => 'assets/avatars/avatar${i + 1}.svg');
+                          // Show picker immediately; load manifest inside the sheet to avoid using BuildContext across async gaps
                           final picked = await showModalBottomSheet<String?>(
                             context: context,
-                            builder: (ctx) => Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: GridView.count(
-                                crossAxisCount: 3,
-                                shrinkWrap: true,
-                                children: avatars
-                                    .map(
-                                      (path) => GestureDetector(
+                            isScrollControlled: true,
+                            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+                            builder: (ctx) {
+                              return FutureBuilder<List<String>>(
+                                future: () async {
+                                  try {
+                                    final manifestContent = await rootBundle.loadString('AssetManifest.json');
+                                    final Map<String, dynamic> manifestMap = json.decode(manifestContent) as Map<String, dynamic>;
+                                    final avatars = manifestMap.keys
+                                        .where((k) => k.startsWith('assets/avatars/'))
+                                        .where((k) => k.endsWith('.png') || k.endsWith('.jpg') || k.endsWith('.jpeg') || k.endsWith('.svg'))
+                                        .toList()
+                                      ..sort();
+                                    return avatars;
+                                  } catch (_) {
+                                    return <String>[];
+                                  }
+                                }(),
+                                builder: (context, snap) {
+                                  if (snap.connectionState == ConnectionState.waiting) return const SizedBox(height: 220, child: Center(child: CircularProgressIndicator()));
+                                  final avatars = snap.data ?? <String>[];
+                                  if (avatars.isEmpty) {
+                                    return SizedBox(
+                                      height: 240,
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(16),
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            const Text('No avatars available', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                                            const SizedBox(height: 8),
+                                            const Text('Place avatar images in assets/avatars/ and run flutter pub get', textAlign: TextAlign.center),
+                                            const SizedBox(height: 12),
+                                            FilledButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Close')),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  }
+
+                                  // Single scrollable grid: Random + all avatars
+                                  final items = <Widget>[];
+                                  items.add(GestureDetector(
+                                    onTap: () {
+                                      final rnd = avatars[Random().nextInt(avatars.length)];
+                                      Navigator.of(ctx).pop(rnd);
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(8.0),
+                                      child: CircleAvatar(
+                                        radius: 36,
+                                        backgroundColor: Colors.white,
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: const [
+                                            Icon(Icons.shuffle, size: 28, color: Colors.deepPurple),
+                                            SizedBox(height: 6),
+                                            Text('Random', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ));
+                                  items.addAll(avatars.map((path) => GestureDetector(
                                         onTap: () => Navigator.of(ctx).pop(path),
                                         child: Padding(
                                           padding: const EdgeInsets.all(8.0),
@@ -98,14 +156,29 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                             ),
                                           ),
                                         ),
+                                      )));
+
+                                  final rows = (items.length / 3).ceil();
+                                  final height = (rows * 110).clamp(220, 520).toDouble();
+                                  return SizedBox(
+                                    height: height,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(16),
+                                      child: GridView.count(
+                                        crossAxisCount: 3,
+                                        childAspectRatio: 1,
+                                        children: items,
                                       ),
-                                    )
-                                    .toList(),
-                              ),
-                            ),
+                                    ),
+                                  );
+                                },
+                              );
+                            },
                           );
+
                           if (picked != null) {
                             await ref.read(settingsProvider.notifier).setProfilePhoto(picked);
+                            if (!mounted) return;
                             setState(() => _photoUrl = picked);
                           }
                         },

@@ -29,18 +29,13 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
   @override
   Widget build(BuildContext context) {
     final subjects = ref.watch(subjectsProvider);
-  // Use repository helper to get entries for the selected day (already sorted by start time)
-  final entriesForDay = ref.read(scheduleProvider.notifier).entriesForDay(selectedDay);
+    final entriesForDay = ref.read(scheduleProvider.notifier).entriesForDay(selectedDay);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FB),
-      appBar: AppBar(
-        title: const Text('Schedule'),
-      ),
+      appBar: AppBar(title: const Text('Schedule')),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: subjects.isEmpty
-            ? () => _showNeedSubjectsDialog(context)
-            : () => _showScheduleSheet(context, null),
+        onPressed: subjects.isEmpty ? () => _showNeedSubjectsDialog(context) : () => _showScheduleSheet(context, null),
         label: const Text('Add Class'),
         icon: const Icon(Icons.add_rounded),
       ),
@@ -50,12 +45,8 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
           children: [
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-              ),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: List.generate(_days.length, (index) {
                   final isSelected = index == selectedDay;
                   return Expanded(
@@ -63,30 +54,19 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                       onTap: () => setState(() => selectedDay = index),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
                         decoration: BoxDecoration(
-              color: isSelected
-                ? Theme.of(context)
-                  .colorScheme
-                  .primary
-                  .withValues(alpha: 0.1)
-                : Colors.transparent,
+                          color: isSelected ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08) : Colors.transparent,
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: Column(
-                          children: [
-                            Text(
-                              _days[index],
-                              style: TextStyle(
-                                fontWeight:
-                                    isSelected ? FontWeight.w600 : FontWeight.w500,
-                                color: isSelected
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Colors.grey[600],
-                              ),
+                        child: Center(
+                          child: Text(
+                            _days[index],
+                            style: TextStyle(
+                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                              color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey[600],
                             ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
@@ -110,81 +90,59 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                             break;
                           }
                         }
-                        if (subject == null) {
-                          return const SizedBox.shrink();
-                        }
+                        if (subject == null) return const SizedBox.shrink();
+
+                        final hex = subject.color.replaceAll('#', '');
+                        final cardColor = Color(int.parse('0xff$hex'));
+
                         return Container(
-                          padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(20),
                             boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.05),
-                                blurRadius: 12,
-                                offset: const Offset(0, 8),
-                              ),
+                              BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 8)),
                             ],
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    height: 44,
-                                    width: 44,
-                                    decoration: BoxDecoration(
-                                      color: Color(int.parse(
-                                          '0xff${subject.color.replaceAll('#', '')}')),
-                                      borderRadius: BorderRadius.circular(16),
+                              // Ribbon with subject code
+                              Container(
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(colors: [cardColor, cardColor.withValues(alpha: 0.92)]),
+                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                child: Row(
+                                  children: [
+                                    // subject code — no background bubble
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      child: Text(subject.code.toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
                                     ),
-                                    child: Center(
-                                      child: Text(
-                                        subject.code,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w600,
-                                        ),
+                                    const Spacer(),
+                                  ],
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(subject.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                                          const SizedBox(height: 6),
+                                          Text('${entry.startTime} · ${entry.endTime} · ${entry.venue}', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                                        ],
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          subject.name,
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          '${entry.startTime} - ${entry.endTime} · ${entry.venue}',
-                                          style: TextStyle(
-                                            color: Colors.grey[600],
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  IconButton(
-                                    onPressed: () => _showScheduleSheet(context, entry),
-                                    icon: const Icon(Icons.edit_rounded),
-                                  ),
-                                  IconButton(
-                                    onPressed: () async {
-                                      await ref
-                                          .read(scheduleProvider.notifier)
-                                          .deleteEntry(entry.id);
-                                    },
-                                    icon: const Icon(Icons.delete_outline_rounded),
-                                  ),
-                                ],
+                                    IconButton(onPressed: () => _showScheduleSheet(context, entry), icon: const Icon(Icons.edit_rounded)),
+                                    IconButton(onPressed: () async => await ref.read(scheduleProvider.notifier).deleteEntry(entry.id), icon: const Icon(Icons.delete_outline_rounded)),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
@@ -205,21 +163,9 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
         children: [
           const Icon(Icons.calendar_today_outlined, size: 48, color: Colors.grey),
           const SizedBox(height: 16),
-          Text(
-            'No classes yet',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w600),
-          ),
+          Text('No classes yet', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          Text(
-            'Build your weekly timetable to see it here.',
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: Colors.grey[600]),
-          ),
+          Text('Build your weekly timetable to see it here.', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey[600])),
         ],
       ),
     );
@@ -230,15 +176,8 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Add subjects first'),
-        content: const Text(
-          'Create subjects before assigning them to the timetable.',
-        ),
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Got it'),
-          ),
-        ],
+        content: const Text('Create subjects before assigning them to the timetable.'),
+        actions: [FilledButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Got it'))],
       ),
     );
   }
@@ -256,161 +195,100 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (context) {
         final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return Padding(
-              padding: EdgeInsets.fromLTRB(20, 24, 20, bottomInset + 24),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      entry == null ? 'Add Class' : 'Edit Class',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 20),
-                    DropdownButtonFormField<String>(
-                      initialValue: selectedSubjectId,
-                      decoration: _inputDecoration('Subject'),
-                      items: subjects
-                          .map(
-                            (subject) => DropdownMenuItem(
-                              value: subject.id,
-                              child: Text(subject.name),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) => setState(() => selectedSubjectId = value),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<int>(
-                      initialValue: day,
-                      decoration: _inputDecoration('Day'),
-                      items: List.generate(_days.length, (index) => index)
-                          .map(
-                            (value) => DropdownMenuItem(
-                              value: value,
-                              child: Text(_days[value]),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) => setState(() => day = value ?? day),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: startController,
-                      readOnly: true,
-                      decoration: _inputDecoration('Start Time'),
-                      onTap: () async {
-                        final picked = await showTimePicker(
-                          context: context,
-                          initialTime: startTime,
-                          initialEntryMode: TimePickerEntryMode.dial,
-                        );
-                        if (picked != null) {
-                          if (!context.mounted) {
-                            return;
-                          }
-                          setState(() {
-                            startTime = picked;
-                            startController.text = _formatTimeOfDay(startTime);
-                            if (!_isEndAfterStart(startTime, endTime)) {
-                              endTime = _addMinutes(startTime, 60);
-                              endController.text = _formatTimeOfDay(endTime);
-                            }
-                          });
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: endController,
-                      readOnly: true,
-                      decoration: _inputDecoration('End Time'),
-                      onTap: () async {
-                        final picked = await showTimePicker(
-                          context: context,
-                          initialTime: endTime,
-                          initialEntryMode: TimePickerEntryMode.dial,
-                        );
-                        if (picked != null) {
-                          if (!context.mounted) {
-                            return;
-                          }
-                          setState(() {
-                            endTime = picked;
-                            endController.text = _formatTimeOfDay(endTime);
-                          });
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: venueController,
-                      decoration: _inputDecoration('Venue / Room'),
-                    ),
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed: () async {
-                          if (selectedSubjectId == null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Select a subject.')),
-                            );
-                            return;
-                          }
+        return StatefulBuilder(builder: (context, setState) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(20, 24, 20, bottomInset + 24),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(entry == null ? 'Add Class' : 'Edit Class', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 20),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedSubjectId,
+                    decoration: _inputDecoration('Subject'),
+                    items: subjects.map((subject) => DropdownMenuItem(value: subject.id, child: Text(subject.name))).toList(),
+                    onChanged: (value) => setState(() => selectedSubjectId = value),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<int>(
+                    initialValue: day,
+                    decoration: _inputDecoration('Day'),
+                    items: List.generate(_days.length, (index) => index).map((value) => DropdownMenuItem(value: value, child: Text(_days[value]))).toList(),
+                    onChanged: (value) => setState(() => day = value ?? day),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: startController,
+                    readOnly: true,
+                    decoration: _inputDecoration('Start Time'),
+                    onTap: () async {
+                      final picked = await showTimePicker(context: context, initialTime: startTime, initialEntryMode: TimePickerEntryMode.dial);
+                      if (picked != null) {
+                        if (!context.mounted) return;
+                        setState(() {
+                          startTime = picked;
+                          startController.text = _formatTimeOfDay(startTime);
                           if (!_isEndAfterStart(startTime, endTime)) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('End time must be after start time.'),
-                              ),
-                            );
-                            return;
+                            endTime = _addMinutes(startTime, 60);
+                            endController.text = _formatTimeOfDay(endTime);
                           }
-                          final formattedStart = _formatTimeOfDay(startTime);
-                          final formattedEnd = _formatTimeOfDay(endTime);
-                          if (entry == null) {
-                            await ref.read(scheduleProvider.notifier).addEntry(
-                                  subjectId: selectedSubjectId!,
-                                  dayOfWeek: day,
-                                  startTime: formattedStart,
-                                  endTime: formattedEnd,
-                                  venue: venueController.text,
-                                );
-                          } else {
-                            await ref.read(scheduleProvider.notifier).updateEntry(
-                                  entry.copyWith(
-                                    subjectId: selectedSubjectId!,
-                                    dayOfWeek: day,
-                                    startTime: formattedStart,
-                                    endTime: formattedEnd,
-                                    venue: venueController.text,
-                                  ),
-                                );
-                          }
-                          if (context.mounted) {
-                            Navigator.of(context).pop();
-                          }
-                        },
-                        child: Text(entry == null ? 'Add Class' : 'Save Changes'),
-                      ),
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: endController,
+                    readOnly: true,
+                    decoration: _inputDecoration('End Time'),
+                    onTap: () async {
+                      final picked = await showTimePicker(context: context, initialTime: endTime, initialEntryMode: TimePickerEntryMode.dial);
+                      if (picked != null) {
+                        if (!context.mounted) return;
+                        setState(() {
+                          endTime = picked;
+                          endController.text = _formatTimeOfDay(endTime);
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(controller: venueController, decoration: _inputDecoration('Venue / Room')),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () async {
+                        if (selectedSubjectId == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a subject.')));
+                          return;
+                        }
+                        if (!_isEndAfterStart(startTime, endTime)) {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('End time must be after start time.')));
+                          return;
+                        }
+                        final formattedStart = _formatTimeOfDay(startTime);
+                        final formattedEnd = _formatTimeOfDay(endTime);
+                        if (entry == null) {
+                          await ref.read(scheduleProvider.notifier).addEntry(subjectId: selectedSubjectId!, dayOfWeek: day, startTime: formattedStart, endTime: formattedEnd, venue: venueController.text);
+                        } else {
+                          await ref.read(scheduleProvider.notifier).updateEntry(entry.copyWith(subjectId: selectedSubjectId!, dayOfWeek: day, startTime: formattedStart, endTime: formattedEnd, venue: venueController.text));
+                        }
+                        if (context.mounted) Navigator.of(context).pop();
+                      },
+                      child: Text(entry == null ? 'Add Class' : 'Save Changes'),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            );
-          },
-        );
+            ),
+          );
+        });
       },
     );
   }
@@ -420,10 +298,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
       labelText: label,
       filled: true,
       fillColor: Colors.grey[100],
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide.none,
-      ),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
     );
   }
 
@@ -433,16 +308,9 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
   }
 
   TimeOfDay? _parseTimeOfDay(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return null;
-    }
+    if (value == null || value.trim().isEmpty) return null;
     final trimmed = value.trim().toUpperCase();
-    final patterns = <String>[
-      'hh:mm a',
-      'h:mm a',
-      'HH:mm',
-      'H:mm',
-    ];
+    final patterns = <String>['hh:mm a', 'h:mm a', 'HH:mm', 'H:mm'];
     for (final pattern in patterns) {
       try {
         final date = DateFormat(pattern).parseStrict(trimmed);
@@ -454,9 +322,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     return null;
   }
 
-  bool _isEndAfterStart(TimeOfDay start, TimeOfDay end) {
-    return _timeOfDayToMinutes(end) > _timeOfDayToMinutes(start);
-  }
+  bool _isEndAfterStart(TimeOfDay start, TimeOfDay end) => _timeOfDayToMinutes(end) > _timeOfDayToMinutes(start);
 
   int _timeOfDayToMinutes(TimeOfDay time) => time.hour * 60 + time.minute;
 

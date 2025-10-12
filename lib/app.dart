@@ -5,6 +5,7 @@ import 'features/dashboard/dashboard_screen.dart';
 import 'features/schedule/schedule_screen.dart';
 import 'features/subjects/subjects_screen.dart';
 import 'features/profile/profile_screen.dart';
+import 'features/analytics/analytics_screen.dart';
 import 'theme/app_theme.dart';
 import 'providers.dart';
 
@@ -91,7 +92,7 @@ class _AttendifyAppState extends ConsumerState<AttendifyApp> {
     const DashboardScreen(key: ValueKey('dashboard')),
     const SubjectsScreen(key: ValueKey('subjects')),
     const ScheduleScreen(key: ValueKey('schedule')),
-  // Analytics removed
+    const AnalyticsScreen(key: ValueKey('analytics')),
     const ProfileScreen(key: ValueKey('profile')),
   ];
 
@@ -148,6 +149,11 @@ class _AttendifyAppState extends ConsumerState<AttendifyApp> {
               icon: Icon(Icons.calendar_month_outlined),
               selectedIcon: Icon(Icons.calendar_month),
               label: 'Schedule',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.insights_outlined),
+              selectedIcon: Icon(Icons.insights),
+              label: 'Analytics',
             ),
             NavigationDestination(
               icon: Icon(Icons.person_outline),
