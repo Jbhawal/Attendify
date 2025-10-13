@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../models/attendance_record.dart';
 import '../../models/subject.dart';
 import '../../providers.dart';
+import '../../constants/app_colors.dart';
 
 class AnalyticsScreen extends ConsumerWidget {
   const AnalyticsScreen({super.key});
@@ -21,7 +22,7 @@ class AnalyticsScreen extends ConsumerWidget {
     final consistency = _calculateConsistency(attendance);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6FB),
+      backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Analytics')),
       body: Padding(
         padding: const EdgeInsets.all(20),
@@ -335,7 +336,7 @@ class _ConsistencyCard extends StatelessWidget {
         const Text('Consistency Tracker', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
         const SizedBox(height: 16),
         Row(children: [
-          Expanded(child: _streakTile(title: 'Current streak', value: currentStreak, accent: Colors.blueAccent)),
+          Expanded(child: _streakTile(title: 'Current streak', value: currentStreak, accent: AppColors.primary)),
           const SizedBox(width: 12),
           Expanded(child: _streakTile(title: 'Best streak', value: longestStreak, accent: Colors.purpleAccent)),
         ]),

@@ -22,7 +22,7 @@ class DashboardScreen extends ConsumerWidget {
     final todaysClasses = ref.watch(todaysClassesProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6FB),
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
@@ -42,7 +42,7 @@ class DashboardScreen extends ConsumerWidget {
                 const SizedBox(width: 12),
                 Expanded(child: _statTile('At-risk', '${atRiskSubjects.length}', color: Colors.orangeAccent)),
                 const SizedBox(width: 12),
-                Expanded(child: _statTile('Today', '${todaysClasses.length}', color: Colors.blueAccent)),
+                Expanded(child: _statTile('Today', '${todaysClasses.length}', color: AppColors.primary)),
               ],
             ),
             const SizedBox(height: 20),

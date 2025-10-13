@@ -1,11 +1,16 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show rootBundle, Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:excel/excel.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import '../../providers.dart';
+import 'exports_page.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -259,6 +264,42 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   subtitle: const Text('Get a daily notification to mark today\'s attendance'),
                 ),
 
+                // Reminder time selector (visible when reminders are enabled)
+                Builder(builder: (ctx) {
+                  final enabled = ref.watch(settingsProvider).when(data: (m) => (m['reminders_enabled'] as bool?) ?? false, loading: () => false, error: (_, __) => false);
+                  final timeStr = ref.watch(settingsProvider).when(data: (m) => (m['reminder_time'] as String?) ?? '20:00', loading: () => '20:00', error: (_, __) => '20:00');
+                  // Parse stored HH:mm to TimeOfDay
+                  TimeOfDay parseTime(String ts) {
+                    try {
+                      final parts = ts.split(':');
+                      final h = int.parse(parts[0]);
+                      final m = int.parse(parts[1]);
+                      return TimeOfDay(hour: h, minute: m);
+                    } catch (_) {
+                      return const TimeOfDay(hour: 20, minute: 0);
+                    }
+                  }
+
+                  if (!enabled) return const SizedBox.shrink();
+
+                  final current = parseTime(timeStr);
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.access_time),
+                    title: const Text('Reminder time'),
+                    subtitle: Text(current.format(ctx)),
+                    onTap: () async {
+                      final picked = await showTimePicker(context: ctx, initialTime: current);
+                      if (picked != null) {
+                        final hh = picked.hour.toString().padLeft(2, '0');
+                        final mm = picked.minute.toString().padLeft(2, '0');
+                        await ref.read(settingsProvider.notifier).setReminderTime('$hh:$mm');
+                        setState(() {});
+                      }
+                    },
+                  );
+                }),
+
                 const SizedBox(height: 8),
 
                 // Clear local data
@@ -292,8 +333,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   },
                 ),
 
-                const SizedBox(height: 18),
-
                 // Mass bunk rule setting
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -302,12 +341,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   subtitle: Text(
                     ref.watch(settingsProvider).when(
                           data: (m) => (m['mass_bunk_rule'] as String?) == 'cancelled'
-                              ? 'Count as cancelled (0/0)'
+                              ? 'Ignore Class (0/0): Class cancelled, not counted in attendance.'
                               : (m['mass_bunk_rule'] as String?) == 'absent'
-                                  ? 'Count as absent (0/1)'
-                                  : 'Count as attended (1/1)',
-                          loading: () => 'Count as attended (1/1)',
-                          error: (_, __) => 'Count as attended (1/1)',
+                                  ? 'Mark as Absent (0/1): Everyone marked absent.'
+                                  : 'Mark as Present. (1/1): Everyone marked present',
+                          loading: () => 'Mark as Present. (1/1): Everyone marked present',
+                          error: (_, __) => 'Mark as Present. (1/1): Everyone marked present',
                         ),
                   ),
                   onTap: () async {
@@ -318,31 +357,273 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         children: [
                           SimpleDialogOption(
                             onPressed: () => Navigator.of(ctx).pop('present'),
-                            child: const Text('Count as attended (1/1)'),
+                            child: const Text('Mark as Present. (1/1): Everyone marked present'),
                           ),
                           SimpleDialogOption(
                             onPressed: () => Navigator.of(ctx).pop('cancelled'),
-                            child: const Text('Count as cancelled (0/0)'),
+                            child: const Text('Ignore Class (0/0): Class cancelled, not counted in attendance.'),
                           ),
                           SimpleDialogOption(
                             onPressed: () => Navigator.of(ctx).pop('absent'),
-                            child: const Text('Count as absent (0/1)'),
+                            child: const Text('Mark as Absent (0/1): Everyone marked absent.'),
                           ),
                         ],
                       ),
                     );
+                    if (!mounted) return;
                     if (selected != null) {
                       await ref.read(settingsProvider.notifier).setMassBunkRule(selected);
+                      if (!mounted) return;
                       setState(() {});
                     }
                   },
                 ),
+
+                const SizedBox(height: 8),
+
+                // Export data (choose CSV or Excel)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.file_upload_outlined),
+                  title: const Text('Export data'),
+                  subtitle: const Text('Choose CSV or Excel export'),
+                  onTap: () async {
+                    // Capture messenger/context-sensitive objects before any awaits
+                    final messenger = ScaffoldMessenger.maybeOf(context);
+                    final exportContext = context;
+
+                    final choice = await showDialog<String?>(context: exportContext, builder: (ctx) => SimpleDialog(
+                          title: const Text('Export format'),
+                          children: [
+                            SimpleDialogOption(onPressed: () => Navigator.of(ctx).pop('csv'), child: const Text('CSV')),
+                            SimpleDialogOption(onPressed: () => Navigator.of(ctx).pop('excel'), child: const Text('Excel (.xlsx)')),
+                            SimpleDialogOption(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Cancel')),
+                          ],
+                        ));
+                    if (choice == null) return;
+
+                    if (choice == 'csv') {
+                      // Build CSV content from providers
+                      final subjects = ref.read(subjectsProvider);
+                      final attendance = ref.read(attendanceProvider);
+
+                      final sb = StringBuffer();
+                      sb.writeln('subjects:id,name,code,professor,credits,color,created_date');
+                      for (final s in subjects) {
+                        final m = s.toMap();
+                        sb.writeln('${m['id']},"${m['name']}","${m['code']}","${m['professor']}",${m['credits']},${m['color']},${m['created_date']}');
+                      }
+                      sb.writeln();
+                      sb.writeln('attendance:id,subjectId,date,status,notes');
+                      for (final a in attendance) {
+                        sb.writeln('${a.id},${a.subjectId},${a.date.toIso8601String()},${a.status.toString().split('.').last},""');
+                      }
+
+                      final csv = sb.toString();
+
+                      // Ask user for filename (suggest a default) and save CSV to the user-visible export directory
+                      final suggested = 'attendify_export_${DateTime.now().toIso8601String()}.csv';
+                      if (!mounted) return;
+                      final dialogContext = context;
+                      // ignore: use_build_context_synchronously
+                      final filename = await showDialog<String?>(context: dialogContext, builder: (ctx) {
+                        final controller = TextEditingController(text: suggested);
+                        return AlertDialog(
+                          title: const Text('Save CSV as'),
+                          content: TextField(controller: controller, decoration: const InputDecoration(hintText: 'Filename')),
+                          actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.of(ctx).pop(controller.text.trim()), child: const Text('Save'))],
+                        );
+                      });
+
+                      if (!mounted) return;
+
+                      if (filename != null && filename.isNotEmpty) {
+                        try {
+                          final dir = await _getExportDirectory();
+                          final file = File('${dir.path}/$filename');
+                          await file.create(recursive: true);
+                          await file.writeAsString(csv, flush: true);
+                          await Clipboard.setData(ClipboardData(text: file.path));
+                          messenger?.showSnackBar(const SnackBar(content: Text('CSV exported: path copied to clipboard')));
+                          await ref.read(settingsProvider.notifier).addExportFile(file.path);
+                          setState(() {});
+                        } catch (_) {
+                          // Fallback: copy CSV to clipboard and notify via the previously captured messenger
+                          await Clipboard.setData(ClipboardData(text: csv));
+                          messenger?.showSnackBar(const SnackBar(content: Text('CSV copied to clipboard')));
+                        }
+                      }
+                    } else if (choice == 'excel') {
+                      final subjects = ref.read(subjectsProvider);
+                      final attendance = ref.read(attendanceProvider);
+
+                      final excel = Excel.createExcel();
+                      // Subjects sheet
+                      final sSheet = excel['Subjects'];
+                      sSheet.appendRow(['id', 'name', 'code', 'professor', 'credits', 'color', 'created_date']);
+                      for (final s in subjects) {
+                        final m = s.toMap();
+                        sSheet.appendRow([m['id'], m['name'], m['code'], m['professor'], m['credits'], m['color'], m['created_date']]);
+                      }
+
+                      // Attendance sheet
+                      final aSheet = excel['Attendance'];
+                      aSheet.appendRow(['id', 'subjectId', 'date', 'status']);
+                      for (final a in attendance) {
+                        aSheet.appendRow([a.id, a.subjectId, a.date.toIso8601String(), a.status.toString().split('.').last]);
+                      }
+
+                      final bytes = excel.encode();
+                      if (bytes == null) return;
+
+                      // Ask user for filename and save the excel file
+                      final suggestedX = 'attendify_export_${DateTime.now().toIso8601String()}.xlsx';
+                      if (!mounted) return;
+                      final dialogContextX = context;
+                      // ignore: use_build_context_synchronously
+                      final filenameX = await showDialog<String?>(context: dialogContextX, builder: (ctx) {
+                        final controller = TextEditingController(text: suggestedX);
+                        return AlertDialog(
+                          title: const Text('Save Excel as'),
+                          content: TextField(controller: controller, decoration: const InputDecoration(hintText: 'Filename')),
+                          actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.of(ctx).pop(controller.text.trim()), child: const Text('Save'))],
+                        );
+                      });
+
+                      if (!mounted) return;
+
+                      if (filenameX != null && filenameX.isNotEmpty) {
+                        final dir = await _getExportDirectory();
+                        final file = File('${dir.path}/$filenameX');
+                        await file.create(recursive: true);
+                        await file.writeAsBytes(bytes, flush: true);
+                        await Clipboard.setData(ClipboardData(text: file.path));
+                        messenger?.showSnackBar(const SnackBar(content: Text('Excel exported: path copied to clipboard')));
+                        await ref.read(settingsProvider.notifier).addExportFile(file.path);
+                        setState(() {});
+                      }
+                    }
+                  },
+                ),
+
+                // Recent exports preview
+                Builder(builder: (ctx) {
+                  final recent = ref.watch(settingsProvider).when(
+                        data: (m) => (m['last_exports'] as List?)?.cast<String>() ?? <String>[],
+                        loading: () => <String>[],
+                        error: (_, __) => <String>[],
+                      );
+                  if (recent.isEmpty) return const SizedBox.shrink();
+                  final top = recent.take(5).toList();
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: 8),
+                      const Text('Recent exports', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 6),
+                      ...top.map((path) {
+                        final name = p.basename(path);
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.insert_drive_file_outlined),
+                          title: Text(name),
+                          subtitle: Text(path, overflow: TextOverflow.ellipsis),
+                          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                            IconButton(onPressed: () async {
+                              final messenger = ScaffoldMessenger.maybeOf(context);
+                              await Clipboard.setData(ClipboardData(text: path));
+                              messenger?.showSnackBar(const SnackBar(content: Text('Path copied to clipboard')));
+                            }, icon: const Icon(Icons.copy)),
+                            IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ExportsPage())), icon: const Icon(Icons.folder_open)),
+                          ]),
+                        );
+                      }),
+                    ],
+                  );
+                }),
+
+                // FAQ / Walkthrough
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.help_outline),
+                  title: const Text('FAQ / How it works'),
+                  subtitle: const Text('Short walkthrough and tips'),
+                  onTap: () => showDialog<void>(context: context, builder: (ctx) => AlertDialog(
+                        title: const Text('How Attendify works'),
+                        content: const SingleChildScrollView(child: Text('• Add subjects and schedules\n• Mark attendance daily\n• Use reminders to get notified\n• Mass-bunk rules control bulk marking\n• Export your data as CSV')),
+                        actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Close'))],
+                      )),
+                ),
+
+                const SizedBox(height: 8),
+
+                // Report a bug / Send feedback
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.bug_report_outlined),
+                  title: const Text('Report a bug / Send feedback'),
+                  subtitle: const Text('Tell us what went wrong or suggest improvements'),
+                  onTap: () async {
+                    final messenger = ScaffoldMessenger.maybeOf(context);
+                    final controller = TextEditingController();
+                    final submitted = await showDialog<bool?>(context: context, builder: (ctx) => AlertDialog(
+                          title: const Text('Send feedback'),
+                          content: TextField(controller: controller, maxLines: 6, decoration: const InputDecoration(hintText: 'Describe the issue...')),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+                            FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Send')),
+                          ],
+                        ));
+                    if (submitted == true && controller.text.trim().isNotEmpty) {
+                      // For now: copy feedback to clipboard as a placeholder for sending
+                      await Clipboard.setData(ClipboardData(text: controller.text.trim()));
+                      messenger?.showSnackBar(const SnackBar(content: Text('Feedback copied to clipboard (placeholder)')));
+                    }
+                  },
+                ),
+
+                const SizedBox(height: 8),
+
+                // App version and changelog
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.info_outline),
+                  title: const Text('App version & changelog'),
+                  subtitle: const Text('View current version and recent changes'),
+                  onTap: () => showDialog<void>(context: context, builder: (ctx) => AlertDialog(
+                        title: const Text('Version & Changelog'),
+                        content: const SingleChildScrollView(child: Text('Version: 1.0.0\n\nChangelog:\n- Initial release with subjects, schedules, reminders, and export')),
+                        actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Close'))],
+                      )),
+                ),
+                const SizedBox(height: 18),
               ],
             ),
           );
         },
       ),
     );
+  }
+
+  // Return a directory suitable for user-visible exports. On Android try the
+  // Downloads external directory; otherwise fall back to the app documents dir.
+  Future<Directory> _getExportDirectory() async {
+    try {
+      if (Platform.isAndroid) {
+        final dirs = await getExternalStorageDirectories(type: StorageDirectory.downloads);
+        if (dirs != null && dirs.isNotEmpty) {
+          final d = dirs.first;
+          // Ensure it exists
+          await d.create(recursive: true);
+          return d;
+        }
+      }
+    } catch (_) {
+      // ignore and fallback
+    }
+    final docs = await getApplicationDocumentsDirectory();
+    await docs.create(recursive: true);
+    return docs;
   }
 
   // helper(s) intentionally removed

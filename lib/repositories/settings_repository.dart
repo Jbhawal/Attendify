@@ -84,6 +84,20 @@ class SettingsRepository extends StateNotifier<AsyncValue<Map<String, dynamic>>>
     await _load();
   }
 
+  /// Record a newly exported file path (recent exports). Keeps up to 10 entries,
+  /// newest first.
+  Future<void> addExportFile(String path) async {
+    const key = 'last_exports';
+    final current = (_box.get(key) as List?)?.cast<String>() ?? <String>[];
+    final updated = <String>[path, ...current.where((p) => p != path)];
+    if (updated.length > 10) updated.removeRange(10, updated.length);
+    await _box.put(key, updated);
+    await _load();
+  }
+
+  /// Get the recent export paths stored locally.
+  List<String> get lastExports => (state.value?['last_exports'] as List?)?.cast<String>() ?? <String>[];
+
   String? get userName => state.value?['user_name'] as String?;
   String? get profilePhoto => state.value?['profile_photo'] as String?;
   String? get userEmail => state.value?['user_email'] as String?;

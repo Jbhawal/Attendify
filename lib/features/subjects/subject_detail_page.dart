@@ -37,7 +37,7 @@ class _SubjectDetailPageState extends State<SubjectDetailPage> {
       case AttendanceStatus.absent:
         return Colors.redAccent;
       case AttendanceStatus.noClass:
-        return Colors.blueGrey;
+        return Colors.grey[600]!;
       case AttendanceStatus.extraClass:
         return Colors.deepPurple;
       case AttendanceStatus.massBunk:

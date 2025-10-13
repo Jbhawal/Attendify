@@ -42,6 +42,10 @@ dependencies:
   timezone: ^0.9.4
   google_fonts: ^6.2.1
   flutter_svg: ^2.0.7
+  excel: ^2.0.0
+  path_provider: ^2.0.15
+  path: ^1.8.3
+  # share_plus removed due to Android namespace issues; fallback dialog/copy used instead
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

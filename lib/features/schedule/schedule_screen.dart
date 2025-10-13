@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../models/schedule_entry.dart';
 import '../../models/subject.dart';
 import '../../providers.dart';
+import '../../constants/app_colors.dart';
 
 class ScheduleScreen extends ConsumerStatefulWidget {
   const ScheduleScreen({super.key});
@@ -32,7 +33,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     final entriesForDay = ref.read(scheduleProvider.notifier).entriesForDay(selectedDay);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6FB),
+      backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Schedule')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: subjects.isEmpty ? () => _showNeedSubjectsDialog(context) : () => _showScheduleSheet(context, null),
@@ -264,7 +265,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                   TextField(
                     controller: classesController,
                     keyboardType: TextInputType.number,
-                    decoration: _inputDecoration('Number of classes'),
+                    decoration: _inputDecoration('Number of classes to mark'),
                   ),
                   const SizedBox(height: 24),
                   SizedBox(

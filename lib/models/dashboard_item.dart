@@ -30,7 +30,7 @@ class TimetableItem {
       case AttendanceStatus.massBunk:
         return Colors.orange;
       case null:
-        return Colors.blueGrey;
+        return Colors.grey;
     }
   }
 
