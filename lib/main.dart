@@ -8,6 +8,10 @@ import 'models/attendance_record.dart';
 import 'models/schedule_entry.dart';
 import 'models/subject.dart';
 
+// Feature flag: when true, the app seeds sample/demo data on first run when
+// the Hive boxes are empty. Set to false to prevent automatic seeding.
+const bool kSeedSampleData = false;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
@@ -24,7 +28,7 @@ Future<void> main() async {
     Hive.openBox(settingsBoxName),
   ]);
 
-  await _seedSampleData();
+  if (kSeedSampleData) await _seedSampleData();
 
   runApp(const ProviderScope(child: AttendifyApp()));
 }

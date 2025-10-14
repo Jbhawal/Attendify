@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:math';
 
 import 'features/dashboard/dashboard_screen.dart';
 import 'features/schedule/schedule_screen.dart';
@@ -16,37 +17,21 @@ class AttendifyApp extends ConsumerStatefulWidget {
   ConsumerState<AttendifyApp> createState() => _AttendifyAppState();
 }
 
-class _OnboardingFlow extends ConsumerStatefulWidget {
+class _OnboardingPage extends ConsumerStatefulWidget {
+  const _OnboardingPage();
+
   @override
-  ConsumerState<_OnboardingFlow> createState() => _OnboardingFlowState();
+  ConsumerState<_OnboardingPage> createState() => _OnboardingPageState();
 }
 
-class _OnboardingFlowState extends ConsumerState<_OnboardingFlow> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _runFlow());
-  }
+class _OnboardingPageState extends ConsumerState<_OnboardingPage> {
+  final TextEditingController _controller = TextEditingController();
 
-  Future<void> _runFlow() async {
-    final controller = TextEditingController();
-    final name = await showDialog<String?>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Welcome to Attendify'),
-        content: TextField(controller: controller, decoration: const InputDecoration(hintText: 'Enter your full name')),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Skip')),
-          FilledButton(onPressed: () => Navigator.of(ctx).pop(controller.text.trim()), child: const Text('Save')),
-        ],
-      ),
-    );
-
+  Future<void> _saveAndContinue(String? name) async {
     if (name != null && name.isNotEmpty) {
       await ref.read(settingsProvider.notifier).setUserName(name);
     }
     if (!mounted) return;
-
     final selectedRule = await showDialog<String?>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -58,9 +43,9 @@ class _OnboardingFlowState extends ConsumerState<_OnboardingFlow> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop('present'), child: const Text('Count as attended (1/1)')),
-          TextButton(onPressed: () => Navigator.of(ctx).pop('cancelled'), child: const Text('Count as cancelled (0/0)')),
-          TextButton(onPressed: () => Navigator.of(ctx).pop('absent'), child: const Text('Count as absent (0/1)')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop('present'), child: const Text('Mark as Present. (1/1): Everyone marked present')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop('cancelled'), child: const Text('Ignore Class (0/0): Class cancelled, not counted in attendance.')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop('absent'), child: const Text('Mark as Absent (0/1): Everyone marked absent.')),
         ],
       ),
     );
@@ -76,10 +61,49 @@ class _OnboardingFlowState extends ConsumerState<_OnboardingFlow> {
 
   @override
   Widget build(BuildContext context) {
-    // Show a simple scaffold while onboarding runs
+    final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: const SizedBox.shrink(),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Logo placeholder — reuse app title styling
+              const FlutterLogo(size: 96),
+              const SizedBox(height: 12),
+              Text('Attendify', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 28),
+              Text('Welcome! What should we call you?', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 12),
+              TextField(controller: _controller, decoration: const InputDecoration(hintText: 'Enter your full name'), textCapitalization: TextCapitalization.words),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        // generate a random fallback username like User12345
+                        final rnd = Random();
+                        final suffix = rnd.nextInt(90000) + 10000; // 10000..99999
+                        _saveAndContinue('User$suffix');
+                      },
+                      child: const Text('Skip'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => _saveAndContinue(_controller.text.trim()),
+                      child: const Text('Save'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -109,7 +133,7 @@ class _AttendifyAppState extends ConsumerState<AttendifyApp> {
       );
       if (!hasName) {
         final nav = _navigatorKey.currentState;
-        nav?.push(MaterialPageRoute(builder: (_) => _OnboardingFlow()));
+        nav?.push(MaterialPageRoute(builder: (_) => const _OnboardingPage()));
       }
     });
     return MaterialApp(

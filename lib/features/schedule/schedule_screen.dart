@@ -29,8 +29,11 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final subjects = ref.watch(subjectsProvider);
-    final entriesForDay = ref.read(scheduleProvider.notifier).entriesForDay(selectedDay);
+  final subjects = ref.watch(subjectsProvider);
+  // Ensure we rebuild when schedules change. Watch the provider (value unused)
+  ref.watch(scheduleProvider);
+  // Use the notifier helper to get sorted entries for the selected day
+  final entriesForDay = ref.read(scheduleProvider.notifier).entriesForDay(selectedDay);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -292,9 +295,12 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                           final scheduleId = await ref.read(scheduleProvider.notifier).addEntry(subjectId: selectedSubjectId!, dayOfWeek: day, startTime: formattedStart, endTime: formattedEnd, venue: venueController.text);
                           // store per-schedule class count in settings so attendance marking can use it
                           await ref.read(settingsProvider.notifier).setScheduleClassCount(scheduleId, num);
-                          if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Saved class count ($num) for the schedule.')));
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Class added — saved class count: $num'), duration: const Duration(seconds: 2)));
+                          }
                         } else {
                           await ref.read(scheduleProvider.notifier).updateEntry(entry.copyWith(subjectId: selectedSubjectId!, dayOfWeek: day, startTime: formattedStart, endTime: formattedEnd, venue: venueController.text));
+                          if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Schedule updated'), duration: Duration(seconds: 2)));
                         }
                         if (context.mounted) Navigator.of(context).pop();
                       },

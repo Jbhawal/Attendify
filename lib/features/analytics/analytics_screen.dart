@@ -40,8 +40,10 @@ class AnalyticsScreen extends ConsumerWidget {
                 ...subjects.map((s) {
                   final summary = attendanceRepo.summaryForSubject(s.id);
                   final percent = attendanceRepo.percentageForSubject(s.id);
-                  final plannedKey = 'subject_total_\${s.id}';
+                  // Fix: interpolate subject id correctly into settings key
+                  final plannedKey = 'subject_total_${s.id}';
                   final planned = settings[plannedKey] as int?;
+                  debugPrint('Analytics subject ${s.id}: pct=${percent.toStringAsFixed(2)}, planned=$planned');
                   return _SubjectAnalyticsCard(
                     subject: s,
                     percentage: percent,

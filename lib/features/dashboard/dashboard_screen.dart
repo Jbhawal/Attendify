@@ -60,7 +60,11 @@ class DashboardScreen extends ConsumerWidget {
                   final held = summary['held'] ?? 0;
                   final attended = summary['attended'] ?? 0;
                   final settingsMap = ref.watch(settingsProvider).value ?? <String, dynamic>{};
-                  final planned = settingsMap['subject_total_\${s.id}'] as int?;
+                  // Fix: interpolate subject id into key correctly (was escaped previously)
+                  final planned = settingsMap['subject_total_${s.id}'] as int?;
+                  // Debug/logging to help trace any mismatch between displayed percentage
+                  // and "at-risk" decision. Remove or guard behind kDebugMode later.
+                  debugPrint('AtRisk check: ${s.name} (id=${s.id}) -> pct=${pct.toStringAsFixed(2)}, held=$held, attended=$attended, planned=$planned');
                   final need = _needToAttend(held, attended, planned: planned);
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
@@ -300,18 +304,19 @@ Widget _ribbonSubjectCard(BuildContext context, Subject subject, double percenta
                   children: [
                     Text('${percentage.toStringAsFixed(1)}%', style: TextStyle(color: percentage >= 75 ? Colors.green : Colors.redAccent, fontWeight: FontWeight.w800)),
                     const Spacer(),
-                    // small pill showing 'Needs attention' and optionally needToAttend
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(color: Colors.orangeAccent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
-                      child: Row(children: [
-                        Text('Needs', style: TextStyle(color: Colors.orangeAccent.shade700, fontWeight: FontWeight.w700, fontSize: 12)),
-                        if (needToAttend != null && needToAttend > 0) ...[
-                          const SizedBox(width: 6),
-                          Text('$needToAttend', style: TextStyle(color: Colors.orangeAccent.shade700, fontWeight: FontWeight.w900, fontSize: 12)),
-                        ]
-                      ]),
-                    ),
+                    // small pill showing 'Needs attention' only when genuinely at-risk
+                    if (percentage < 75)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(color: Colors.orangeAccent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
+                        child: Row(children: [
+                          Text('Needs', style: TextStyle(color: Colors.orangeAccent.shade700, fontWeight: FontWeight.w700, fontSize: 12)),
+                          if (needToAttend != null && needToAttend > 0) ...[
+                            const SizedBox(width: 6),
+                            Text('$needToAttend', style: TextStyle(color: Colors.orangeAccent.shade700, fontWeight: FontWeight.w900, fontSize: 12)),
+                          ]
+                        ]),
+                      ),
                   ],
                 ),
               ],

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../models/attendance_record.dart';
 import '../../models/subject.dart';
+import '../../models/schedule_entry.dart';
 import '../../providers.dart';
 
 Future<void> showAddPastAttendanceSheet({
@@ -126,13 +127,40 @@ Future<void> showAddPastAttendanceSheet({
                       : () async {
                           final from = startDate;
                           final to = useRange ? endDate : startDate;
-                          final List<DateTime> dates = [];
+
+                          // Determine scheduled weekdays for this subject. ScheduleEntry.dayOfWeek
+                          // may be stored as 0..6 (Mon=0) or 1..7 (Mon=1) depending on code paths,
+                          // so normalize to DateTime.weekday values (1..7, Mon=1).
+                          final schedules = ref.read(scheduleProvider).where((e) => e.subjectId == subject.id).toList();
+                          final Set<int> scheduledWeekdays = <int>{};
+                          for (final ScheduleEntry se in schedules) {
+                            final int raw = se.dayOfWeek;
+                            if (raw >= 0 && raw <= 6) {
+                              // stored as 0..6 => map Monday(0)->1
+                              scheduledWeekdays.add(raw + 1);
+                            } else if (raw >= 1 && raw <= 7) {
+                              // stored as 1..7 already
+                              scheduledWeekdays.add(raw);
+                            } else {
+                              // best-effort fallback
+                              scheduledWeekdays.add(((raw % 7) + 7) % 7 + 1);
+                            }
+                          }
+
+                          // Build list of dates and only mark those matching scheduled weekdays.
                           for (DateTime d = from; !d.isAfter(to); d = d.add(const Duration(days: 1))) {
-                            dates.add(DateTime(d.year, d.month, d.day));
+                            final normalized = DateTime(d.year, d.month, d.day);
+                            // If no schedule entries exist for this subject, keep previous behavior: mark every day.
+                            if (schedules.isEmpty || scheduledWeekdays.contains(normalized.weekday)) {
+                              await ref.read(attendanceProvider.notifier).markAttendance(
+                                subjectId: subject.id,
+                                date: normalized,
+                                status: selectedStatus!,
+                                notes: notesController.text.isEmpty ? null : notesController.text,
+                              );
+                            }
                           }
-                          for (final d in dates) {
-                            await ref.read(attendanceProvider.notifier).markAttendance(subjectId: subject.id, date: d, status: selectedStatus!, notes: notesController.text.isEmpty ? null : notesController.text);
-                          }
+
                           if (context.mounted) Navigator.of(context).pop();
                         },
                   child: const Text('Save'),
