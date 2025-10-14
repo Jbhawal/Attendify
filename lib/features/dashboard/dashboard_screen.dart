@@ -334,18 +334,56 @@ class _CompactClassTile extends StatelessWidget {
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) {
+    final hex = item.subject.color.replaceAll('#', '');
+    final cardColor = Color(int.parse('0xff$hex'));
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 6))]),
-        child: Row(children: [
-          Container(width: 44, height: 44, decoration: BoxDecoration(color: Color(int.parse('0xff${item.subject.color.replaceAll('#', '')}')), borderRadius: BorderRadius.circular(10)), child: Center(child: Text(item.subject.code.toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)))),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(item.subject.name, style: const TextStyle(fontWeight: FontWeight.w600)), const SizedBox(height: 4), Text('${item.schedule.startTime} · ${item.schedule.venue}', style: TextStyle(color: Colors.grey[600], fontSize: 13))])),
-          const SizedBox(width: 8),
-          TextButton(onPressed: onTap, child: const Text('Mark')),
-        ]),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 6))],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Ribbon header like Schedule/Subjects
+            Container(
+              height: 36,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [cardColor, cardColor.withValues(alpha: 0.9)]),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: Row(
+                children: [
+                  Padding(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), child: Text(item.subject.code.toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13))),
+                  const Spacer(),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(item.subject.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 4),
+                        Text('${item.schedule.startTime} · ${item.schedule.venue}', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(onPressed: onTap, child: const Text('Mark')),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

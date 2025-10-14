@@ -12,6 +12,9 @@ import 'package:path/path.dart' as p;
 import '../../providers.dart';
 import 'exports_page.dart';
 
+// Feature flag: archive exports UI in profile. Set to false to hide the export
+const bool kProfileExportsArchived = true;
+
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
@@ -381,166 +384,168 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
                 const SizedBox(height: 8),
 
-                // Export data (choose CSV or Excel)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.file_upload_outlined),
-                  title: const Text('Export data'),
-                  subtitle: const Text('Choose CSV or Excel export'),
-                  onTap: () async {
-                    // Capture messenger/context-sensitive objects before any awaits
-                    final messenger = ScaffoldMessenger.maybeOf(context);
-                    final exportContext = context;
+                if (!kProfileExportsArchived)
+                  // Export data (choose CSV or Excel)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.file_upload_outlined),
+                    title: const Text('Export data'),
+                    subtitle: const Text('Choose CSV or Excel export'),
+                    onTap: () async {
+                      // Capture messenger/context-sensitive objects before any awaits
+                      final messenger = ScaffoldMessenger.maybeOf(context);
+                      final exportContext = context;
 
-                    final choice = await showDialog<String?>(context: exportContext, builder: (ctx) => SimpleDialog(
-                          title: const Text('Export format'),
-                          children: [
-                            SimpleDialogOption(onPressed: () => Navigator.of(ctx).pop('csv'), child: const Text('CSV')),
-                            SimpleDialogOption(onPressed: () => Navigator.of(ctx).pop('excel'), child: const Text('Excel (.xlsx)')),
-                            SimpleDialogOption(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Cancel')),
-                          ],
-                        ));
-                    if (choice == null) return;
+                      final choice = await showDialog<String?>(context: exportContext, builder: (ctx) => SimpleDialog(
+                            title: const Text('Export format'),
+                            children: [
+                              SimpleDialogOption(onPressed: () => Navigator.of(ctx).pop('csv'), child: const Text('CSV')),
+                              SimpleDialogOption(onPressed: () => Navigator.of(ctx).pop('excel'), child: const Text('Excel (.xlsx)')),
+                              SimpleDialogOption(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Cancel')),
+                            ],
+                          ));
+                      if (choice == null) return;
 
-                    if (choice == 'csv') {
-                      // Build CSV content from providers
-                      final subjects = ref.read(subjectsProvider);
-                      final attendance = ref.read(attendanceProvider);
+                      if (choice == 'csv') {
+                        // Build CSV content from providers
+                        final subjects = ref.read(subjectsProvider);
+                        final attendance = ref.read(attendanceProvider);
 
-                      final sb = StringBuffer();
-                      sb.writeln('subjects:id,name,code,professor,credits,color,created_date');
-                      for (final s in subjects) {
-                        final m = s.toMap();
-                        sb.writeln('${m['id']},"${m['name']}","${m['code']}","${m['professor']}",${m['credits']},${m['color']},${m['created_date']}');
-                      }
-                      sb.writeln();
-                      sb.writeln('attendance:id,subjectId,date,status,notes');
-                      for (final a in attendance) {
-                        sb.writeln('${a.id},${a.subjectId},${a.date.toIso8601String()},${a.status.toString().split('.').last},""');
-                      }
+                        final sb = StringBuffer();
+                        sb.writeln('subjects:id,name,code,professor,credits,color,created_date');
+                        for (final s in subjects) {
+                          final m = s.toMap();
+                          sb.writeln('${m['id']},"${m['name']}","${m['code']}","${m['professor']}",${m['credits']},${m['color']},${m['created_date']}');
+                        }
+                        sb.writeln();
+                        sb.writeln('attendance:id,subjectId,date,status,notes');
+                        for (final a in attendance) {
+                          sb.writeln('${a.id},${a.subjectId},${a.date.toIso8601String()},${a.status.toString().split('.').last},""');
+                        }
 
-                      final csv = sb.toString();
+                        final csv = sb.toString();
 
-                      // Ask user for filename (suggest a default) and save CSV to the user-visible export directory
-                      final suggested = 'attendify_export_${DateTime.now().toIso8601String()}.csv';
-                      if (!mounted) return;
-                      final dialogContext = context;
-                      // ignore: use_build_context_synchronously
-                      final filename = await showDialog<String?>(context: dialogContext, builder: (ctx) {
-                        final controller = TextEditingController(text: suggested);
-                        return AlertDialog(
-                          title: const Text('Save CSV as'),
-                          content: TextField(controller: controller, decoration: const InputDecoration(hintText: 'Filename')),
-                          actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.of(ctx).pop(controller.text.trim()), child: const Text('Save'))],
-                        );
-                      });
+                        // Ask user for filename (suggest a default) and save CSV to the user-visible export directory
+                        final suggested = 'attendify_export_${DateTime.now().toIso8601String()}.csv';
+                        if (!mounted) return;
+                        final dialogContext = context;
+                        // ignore: use_build_context_synchronously
+                        final filename = await showDialog<String?>(context: dialogContext, builder: (ctx) {
+                          final controller = TextEditingController(text: suggested);
+                          return AlertDialog(
+                            title: const Text('Save CSV as'),
+                            content: TextField(controller: controller, decoration: const InputDecoration(hintText: 'Filename')),
+                            actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.of(ctx).pop(controller.text.trim()), child: const Text('Save'))],
+                          );
+                        });
 
-                      if (!mounted) return;
+                        if (!mounted) return;
 
-                      if (filename != null && filename.isNotEmpty) {
-                        try {
+                        if (filename != null && filename.isNotEmpty) {
+                          try {
+                            final dir = await _getExportDirectory();
+                            final file = File('${dir.path}/$filename');
+                            await file.create(recursive: true);
+                            await file.writeAsString(csv, flush: true);
+                            await Clipboard.setData(ClipboardData(text: file.path));
+                            messenger?.showSnackBar(const SnackBar(content: Text('CSV exported: path copied to clipboard')));
+                            await ref.read(settingsProvider.notifier).addExportFile(file.path);
+                            setState(() {});
+                          } catch (_) {
+                            // Fallback: copy CSV to clipboard and notify via the previously captured messenger
+                            await Clipboard.setData(ClipboardData(text: csv));
+                            messenger?.showSnackBar(const SnackBar(content: Text('CSV copied to clipboard')));
+                          }
+                        }
+                      } else if (choice == 'excel') {
+                        final subjects = ref.read(subjectsProvider);
+                        final attendance = ref.read(attendanceProvider);
+
+                        final excel = Excel.createExcel();
+                        // Subjects sheet
+                        final sSheet = excel['Subjects'];
+                        sSheet.appendRow(['id', 'name', 'code', 'professor', 'credits', 'color', 'created_date']);
+                        for (final s in subjects) {
+                          final m = s.toMap();
+                          sSheet.appendRow([m['id'], m['name'], m['code'], m['professor'], m['credits'], m['color'], m['created_date']]);
+                        }
+
+                        // Attendance sheet
+                        final aSheet = excel['Attendance'];
+                        aSheet.appendRow(['id', 'subjectId', 'date', 'status']);
+                        for (final a in attendance) {
+                          aSheet.appendRow([a.id, a.subjectId, a.date.toIso8601String(), a.status.toString().split('.').last]);
+                        }
+
+                        final bytes = excel.encode();
+                        if (bytes == null) return;
+
+                        // Ask user for filename and save the excel file
+                        final suggestedX = 'attendify_export_${DateTime.now().toIso8601String()}.xlsx';
+                        if (!mounted) return;
+                        final dialogContextX = context;
+                        // ignore: use_build_context_synchronously
+                        final filenameX = await showDialog<String?>(context: dialogContextX, builder: (ctx) {
+                          final controller = TextEditingController(text: suggestedX);
+                          return AlertDialog(
+                            title: const Text('Save Excel as'),
+                            content: TextField(controller: controller, decoration: const InputDecoration(hintText: 'Filename')),
+                            actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.of(ctx).pop(controller.text.trim()), child: const Text('Save'))],
+                          );
+                        });
+
+                        if (!mounted) return;
+
+                        if (filenameX != null && filenameX.isNotEmpty) {
                           final dir = await _getExportDirectory();
-                          final file = File('${dir.path}/$filename');
+                          final file = File('${dir.path}/$filenameX');
                           await file.create(recursive: true);
-                          await file.writeAsString(csv, flush: true);
+                          await file.writeAsBytes(bytes, flush: true);
                           await Clipboard.setData(ClipboardData(text: file.path));
-                          messenger?.showSnackBar(const SnackBar(content: Text('CSV exported: path copied to clipboard')));
+                          messenger?.showSnackBar(const SnackBar(content: Text('Excel exported: path copied to clipboard')));
                           await ref.read(settingsProvider.notifier).addExportFile(file.path);
                           setState(() {});
-                        } catch (_) {
-                          // Fallback: copy CSV to clipboard and notify via the previously captured messenger
-                          await Clipboard.setData(ClipboardData(text: csv));
-                          messenger?.showSnackBar(const SnackBar(content: Text('CSV copied to clipboard')));
                         }
                       }
-                    } else if (choice == 'excel') {
-                      final subjects = ref.read(subjectsProvider);
-                      final attendance = ref.read(attendanceProvider);
+                    },
+                  ),
 
-                      final excel = Excel.createExcel();
-                      // Subjects sheet
-                      final sSheet = excel['Subjects'];
-                      sSheet.appendRow(['id', 'name', 'code', 'professor', 'credits', 'color', 'created_date']);
-                      for (final s in subjects) {
-                        final m = s.toMap();
-                        sSheet.appendRow([m['id'], m['name'], m['code'], m['professor'], m['credits'], m['color'], m['created_date']]);
-                      }
-
-                      // Attendance sheet
-                      final aSheet = excel['Attendance'];
-                      aSheet.appendRow(['id', 'subjectId', 'date', 'status']);
-                      for (final a in attendance) {
-                        aSheet.appendRow([a.id, a.subjectId, a.date.toIso8601String(), a.status.toString().split('.').last]);
-                      }
-
-                      final bytes = excel.encode();
-                      if (bytes == null) return;
-
-                      // Ask user for filename and save the excel file
-                      final suggestedX = 'attendify_export_${DateTime.now().toIso8601String()}.xlsx';
-                      if (!mounted) return;
-                      final dialogContextX = context;
-                      // ignore: use_build_context_synchronously
-                      final filenameX = await showDialog<String?>(context: dialogContextX, builder: (ctx) {
-                        final controller = TextEditingController(text: suggestedX);
-                        return AlertDialog(
-                          title: const Text('Save Excel as'),
-                          content: TextField(controller: controller, decoration: const InputDecoration(hintText: 'Filename')),
-                          actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.of(ctx).pop(controller.text.trim()), child: const Text('Save'))],
+                if (!kProfileExportsArchived)
+                  // Recent exports preview
+                  Builder(builder: (ctx) {
+                    final recent = ref.watch(settingsProvider).when(
+                          data: (m) => (m['last_exports'] as List?)?.cast<String>() ?? <String>[],
+                          loading: () => <String>[],
+                          error: (_, __) => <String>[],
                         );
-                      });
-
-                      if (!mounted) return;
-
-                      if (filenameX != null && filenameX.isNotEmpty) {
-                        final dir = await _getExportDirectory();
-                        final file = File('${dir.path}/$filenameX');
-                        await file.create(recursive: true);
-                        await file.writeAsBytes(bytes, flush: true);
-                        await Clipboard.setData(ClipboardData(text: file.path));
-                        messenger?.showSnackBar(const SnackBar(content: Text('Excel exported: path copied to clipboard')));
-                        await ref.read(settingsProvider.notifier).addExportFile(file.path);
-                        setState(() {});
-                      }
-                    }
-                  },
-                ),
-
-                // Recent exports preview
-                Builder(builder: (ctx) {
-                  final recent = ref.watch(settingsProvider).when(
-                        data: (m) => (m['last_exports'] as List?)?.cast<String>() ?? <String>[],
-                        loading: () => <String>[],
-                        error: (_, __) => <String>[],
-                      );
-                  if (recent.isEmpty) return const SizedBox.shrink();
-                  final top = recent.take(5).toList();
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const SizedBox(height: 8),
-                      const Text('Recent exports', style: TextStyle(fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 6),
-                      ...top.map((path) {
-                        final name = p.basename(path);
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.insert_drive_file_outlined),
-                          title: Text(name),
-                          subtitle: Text(path, overflow: TextOverflow.ellipsis),
-                          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                            IconButton(onPressed: () async {
-                              final messenger = ScaffoldMessenger.maybeOf(context);
-                              await Clipboard.setData(ClipboardData(text: path));
-                              messenger?.showSnackBar(const SnackBar(content: Text('Path copied to clipboard')));
-                            }, icon: const Icon(Icons.copy)),
-                            IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ExportsPage())), icon: const Icon(Icons.folder_open)),
-                          ]),
-                        );
-                      }),
-                    ],
-                  );
-                }),
+                    if (recent.isEmpty) return const SizedBox.shrink();
+                    final top = recent.take(5).toList();
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SizedBox(height: 8),
+                        const Text('Recent exports', style: TextStyle(fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 6),
+                        ...top.map((path) {
+                          final name = p.basename(path);
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.insert_drive_file_outlined),
+                            title: Text(name),
+                            subtitle: Text(path, overflow: TextOverflow.ellipsis),
+                            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                              IconButton(onPressed: () async {
+                                final messenger = ScaffoldMessenger.maybeOf(context);
+                                await Clipboard.setData(ClipboardData(text: path));
+                                messenger?.showSnackBar(const SnackBar(content: Text('Path copied to clipboard')));
+                              }, icon: const Icon(Icons.copy)),
+                              IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ExportsPage())), icon: const Icon(Icons.folder_open)),
+                            ]),
+                          );
+                        }),
+                      ],
+                    );
+                  }),
 
                 // FAQ / Walkthrough
                 ListTile(
