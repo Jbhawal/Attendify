@@ -7,6 +7,7 @@ import '../../providers.dart';
 import 'subject_detail_page.dart';
 import '../attendance/add_past_attendance_sheet.dart';
 import '../../constants/app_colors.dart';
+import '../../widgets/attendify_text_field.dart';
 
 class SubjectsScreen extends ConsumerWidget {
   const SubjectsScreen({super.key});
@@ -181,6 +182,13 @@ class SubjectsScreen extends ConsumerWidget {
     final plannedController = TextEditingController(text: subject == null ? '' : (ref.read(settingsProvider).value?['subject_total_${subject.id}']?.toString() ?? ''));
     final creditsController = TextEditingController(text: subject != null ? subject.credits.toString() : '3');
     String selectedColor = subject?.color ?? '#00897B';
+    bool nameError = false;
+    // Listen and clear error when user types
+    nameController.addListener(() {
+      if (nameError && nameController.text.isNotEmpty) {
+        nameError = false; // will be updated in the sheet's setState
+      }
+    });
 
     await showModalBottomSheet<void>(
       context: context,
@@ -207,15 +215,15 @@ class SubjectsScreen extends ConsumerWidget {
                       ],
                     ),
                     const SizedBox(height: 20),
-                    _AttendifyTextField(controller: nameController, label: 'Subject Name'),
+                    AttendifyTextField(controller: nameController, label: 'Subject Name', isRequired: true, showError: nameError, errorText: 'Name is required'),
                     const SizedBox(height: 12),
-                    _AttendifyTextField(controller: codeController, label: 'Subject Code', textCapitalization: TextCapitalization.characters),
+                    AttendifyTextField(controller: codeController, label: 'Subject Code', textCapitalization: TextCapitalization.characters),
                     const SizedBox(height: 12),
-                    _AttendifyTextField(controller: professorController, label: 'Professor'),
+                    AttendifyTextField(controller: professorController, label: 'Professor'),
                     const SizedBox(height: 12),
-                    _AttendifyTextField(controller: creditsController, label: 'Credits', keyboardType: TextInputType.number),
+                    AttendifyTextField(controller: creditsController, label: 'Credits', keyboardType: TextInputType.number),
                     const SizedBox(height: 16),
-                    _AttendifyTextField(controller: plannedController, label: 'Planned total classes (optional)', keyboardType: TextInputType.number),
+                    AttendifyTextField(controller: plannedController, label: 'Planned total classes (optional)', keyboardType: TextInputType.number),
                     const SizedBox(height: 12),
                     const Text('Theme color', style: TextStyle(fontWeight: FontWeight.w600)),
                     const SizedBox(height: 10),
@@ -252,7 +260,7 @@ class SubjectsScreen extends ConsumerWidget {
                       child: ElevatedButton(
                         onPressed: () async {
                           if (nameController.text.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Name is required.')));
+                            setState(() => nameError = true);
                             return;
                           }
                           var credits = int.tryParse(creditsController.text) ?? 3;
@@ -466,16 +474,4 @@ class _SubjectCardState extends ConsumerState<_SubjectCard> {
   }
 }
 
-class _AttendifyTextField extends StatelessWidget {
-  const _AttendifyTextField({required this.controller, required this.label, this.keyboardType, this.textCapitalization});
-
-  final TextEditingController controller;
-  final String label;
-  final TextInputType? keyboardType;
-  final TextCapitalization? textCapitalization;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(controller: controller, keyboardType: keyboardType, textCapitalization: textCapitalization ?? TextCapitalization.sentences, decoration: InputDecoration(labelText: label, filled: true, fillColor: Colors.grey[100], border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none)));
-  }
-}
+// Uses shared AttendifyTextField in lib/widgets/attendify_text_field.dart

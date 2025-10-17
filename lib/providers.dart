@@ -85,6 +85,18 @@ final overallAttendanceProvider = Provider<double>((ref) {
   return attended / held * 100;
 });
 
+// Total number of held classes across all subjects (ignoring noClass)
+final overallHeldProvider = Provider<int>((ref) {
+  final attendance = ref.watch(attendanceProvider);
+  final subjects = ref.watch(subjectsProvider);
+  int held = 0;
+  for (final subject in subjects) {
+    final records = attendance.where((record) => record.subjectId == subject.id && record.status != AttendanceStatus.noClass);
+    held += records.length;
+  }
+  return held;
+});
+
 final atRiskSubjectsProvider = Provider<List<Subject>>((ref) {
   final subjects = ref.watch(subjectsProvider);
   // watch attendance list so provider refreshes when records change
@@ -94,8 +106,9 @@ final atRiskSubjectsProvider = Provider<List<Subject>>((ref) {
   return subjects.where((subject) {
     // Use the repository's percentage calculation which respects mass-bunk rule
     final percentage = attendanceRepo.percentageForSubject(subject.id);
-    // If there are no held classes percentageForSubject returns 100, so
+    // If there are no records percentageForSubject returns null, so
     // subjects with no records won't be considered at-risk.
+    if (percentage == null) return false;
     return percentage < 75;
   }).toList();
 });

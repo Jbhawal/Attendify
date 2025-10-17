@@ -6,6 +6,7 @@ import '../../models/schedule_entry.dart';
 import '../../models/subject.dart';
 import '../../providers.dart';
 import '../../constants/app_colors.dart';
+import '../../widgets/attendify_text_field.dart';
 
 class ScheduleScreen extends ConsumerStatefulWidget {
   const ScheduleScreen({super.key});
@@ -80,12 +81,13 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
             ),
             const SizedBox(height: 20),
             Expanded(
-              child: entriesForDay.isEmpty
-                  ? _emptyState(context)
-                  : ListView.separated(
-                      itemCount: entriesForDay.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 16),
-                      itemBuilder: (context, index) {
+        child: entriesForDay.isEmpty
+          ? _emptyState(context)
+          : ListView.separated(
+            padding: const EdgeInsets.only(bottom: 120),
+            itemCount: entriesForDay.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 16),
+            itemBuilder: (context, index) {
                         final entry = entriesForDay[index];
                         Subject? subject;
                         for (final item in subjects) {
@@ -195,7 +197,27 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     final startController = TextEditingController(text: _formatTimeOfDay(startTime));
     final endController = TextEditingController(text: _formatTimeOfDay(endTime));
     final venueController = TextEditingController(text: entry?.venue ?? '');
-  final classesController = TextEditingController(text: entry == null ? '' : '');
+    final settingsMap = ref.read(settingsProvider).value ?? <String, dynamic>{};
+    String? classesInitial;
+    if (entry != null) {
+      // Prefer per-schedule stored count.
+      classesInitial = settingsMap['schedule_count_${entry.id}']?.toString();
+      // Backwards compatibility: some older runs stored the literal key
+      // 'schedule_count_$scheduleId' (no interpolation). Try that too.
+      classesInitial ??= settingsMap[r'schedule_count_$scheduleId']?.toString();
+      // Robust fallback: scan keys for any key that contains the entry id and
+      // use its int value. This handles other malformed or legacy keys.
+      if (classesInitial == null) {
+        for (final e in settingsMap.entries) {
+          if (e.key.contains(entry.id) && e.value is int) {
+            classesInitial = (e.value as int).toString();
+            break;
+          }
+        }
+      }
+    }
+    final classesController = TextEditingController(text: entry == null ? '' : (classesInitial ?? ''));
+  bool classesError = false;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -204,6 +226,9 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
       builder: (context) {
         final bottomInset = MediaQuery.of(context).viewInsets.bottom;
         return StatefulBuilder(builder: (context, setState) {
+          bool subjectError = false;
+          bool startError = false;
+          bool endError = false;
           return Padding(
             padding: EdgeInsets.fromLTRB(20, 24, 20, bottomInset + 24),
             child: SingleChildScrollView(
@@ -215,22 +240,29 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                   const SizedBox(height: 20),
                   DropdownButtonFormField<String>(
                     initialValue: selectedSubjectId,
-                    decoration: _inputDecoration('Subject'),
+                    decoration: _inputDecoration('Subject', isRequired: true, showError: subjectError, errorText: 'Select a subject'),
                     items: subjects.map((subject) => DropdownMenuItem(value: subject.id, child: Text(subject.name))).toList(),
-                    onChanged: (value) => setState(() => selectedSubjectId = value),
+                    onChanged: (value) => setState(() {
+                      selectedSubjectId = value;
+                      subjectError = false;
+                    }),
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<int>(
                     initialValue: day,
-                    decoration: _inputDecoration('Day'),
+                    decoration: _inputDecoration('Day', isRequired: true),
                     items: List.generate(_days.length, (index) => index).map((value) => DropdownMenuItem(value: value, child: Text(_days[value]))).toList(),
-                    onChanged: (value) => setState(() => day = value ?? day),
+                    onChanged: (value) => setState(() {
+                      day = value ?? day;
+                    }),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  AttendifyTextField(
                     controller: startController,
                     readOnly: true,
-                    decoration: _inputDecoration('Start Time'),
+                    isRequired: true,
+                    showError: startError,
+                    errorText: 'Pick a valid start time',
                     onTap: () async {
                       final picked = await showTimePicker(context: context, initialTime: startTime, initialEntryMode: TimePickerEntryMode.dial);
                       if (picked != null) {
@@ -238,6 +270,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                         setState(() {
                           startTime = picked;
                           startController.text = _formatTimeOfDay(startTime);
+                          startError = false;
                           if (!_isEndAfterStart(startTime, endTime)) {
                             endTime = _addMinutes(startTime, 60);
                             endController.text = _formatTimeOfDay(endTime);
@@ -245,12 +278,15 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                         });
                       }
                     },
+                    label: 'Start Time',
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  AttendifyTextField(
                     controller: endController,
                     readOnly: true,
-                    decoration: _inputDecoration('End Time'),
+                    isRequired: true,
+                    showError: endError,
+                    errorText: 'Pick a valid end time',
                     onTap: () async {
                       final picked = await showTimePicker(context: context, initialTime: endTime, initialEntryMode: TimePickerEntryMode.dial);
                       if (picked != null) {
@@ -258,38 +294,40 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                         setState(() {
                           endTime = picked;
                           endController.text = _formatTimeOfDay(endTime);
+                          endError = false;
                         });
                       }
                     },
+                    label: 'End Time',
                   ),
                   const SizedBox(height: 12),
-                  TextField(controller: venueController, decoration: _inputDecoration('Venue / Room')),
+                  AttendifyTextField(controller: venueController, label: 'Venue / Room'),
                   const SizedBox(height: 12),
-                  TextField(
-                    controller: classesController,
-                    keyboardType: TextInputType.number,
-                    decoration: _inputDecoration('Number of classes to mark'),
-                  ),
+                  AttendifyTextField(controller: classesController, label: 'Number of classes to mark', keyboardType: TextInputType.number, isRequired: true, showError: classesError, errorText: 'Enter a positive number'),
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
                       onPressed: () async {
-                        if (selectedSubjectId == null) {
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a subject.')));
+                        // Clear previous inline errors
+                        setState(() {
+                          subjectError = selectedSubjectId == null;
+                          startError = startController.text.trim().isEmpty;
+                          endError = endController.text.trim().isEmpty || !_isEndAfterStart(startTime, endTime);
+                        });
+
+                        if (subjectError || startError || endError) {
                           return;
                         }
-                        if (!_isEndAfterStart(startTime, endTime)) {
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('End time must be after start time.')));
-                          return;
-                        }
+
                         final formattedStart = _formatTimeOfDay(startTime);
                         final formattedEnd = _formatTimeOfDay(endTime);
                         // No auto-attendance creation. Save planned total classes for the subject.
                         if (entry == null) {
-                          final num = int.tryParse(classesController.text) ?? 0;
-                          if (num <= 0) {
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a positive number of classes.')));
+                          final classesText = classesController.text.trim();
+                          final num = int.tryParse(classesText);
+                          if (classesText.isEmpty || num == null || num <= 0) {
+                            setState(() { classesError = true; });
                             return;
                           }
                           final scheduleId = await ref.read(scheduleProvider.notifier).addEntry(subjectId: selectedSubjectId!, dayOfWeek: day, startTime: formattedStart, endTime: formattedEnd, venue: venueController.text);
@@ -300,6 +338,10 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                           }
                         } else {
                           await ref.read(scheduleProvider.notifier).updateEntry(entry.copyWith(subjectId: selectedSubjectId!, dayOfWeek: day, startTime: formattedStart, endTime: formattedEnd, venue: venueController.text));
+                          // Persist per-schedule class count if provided; if empty, remove the stored value
+                          final classesText = classesController.text.trim();
+                          final num = int.tryParse(classesText);
+                          await ref.read(settingsProvider.notifier).setScheduleClassCount(entry.id, num);
                           if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Schedule updated'), duration: Duration(seconds: 2)));
                         }
                         if (context.mounted) Navigator.of(context).pop();
@@ -316,12 +358,14 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     );
   }
 
-  InputDecoration _inputDecoration(String label) {
+  InputDecoration _inputDecoration(String label, {bool isRequired = false, bool showError = false, String? errorText}) {
+    final labelText = isRequired ? '$label *' : label;
     return InputDecoration(
-      labelText: label,
+      labelText: labelText,
       filled: true,
       fillColor: Colors.grey[100],
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+      errorText: showError ? (errorText ?? 'Required') : null,
     );
   }
 

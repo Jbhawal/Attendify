@@ -17,7 +17,8 @@ class AnalyticsScreen extends ConsumerWidget {
     final attendanceRepo = ref.read(attendanceProvider.notifier);
     final settings = ref.watch(settingsProvider).value ?? <String, dynamic>{};
 
-    final overview = _calculateOverview(subjects, attendance);
+  final massRule = settings['mass_bunk_rule'] as String? ?? 'present';
+  final overview = _calculateOverview(subjects, attendance, massRule);
   final riskBuckets = _calculateRiskBuckets(subjects, attendanceRepo);
     final consistency = _calculateConsistency(attendance);
 
@@ -39,14 +40,14 @@ class AnalyticsScreen extends ConsumerWidget {
               const SizedBox(height: 12),
                 ...subjects.map((s) {
                   final summary = attendanceRepo.summaryForSubject(s.id);
-                  final percent = attendanceRepo.percentageForSubject(s.id);
+                  final percent = attendanceRepo.percentageForSubject(s.id); // double?
                   // Fix: interpolate subject id correctly into settings key
                   final plannedKey = 'subject_total_${s.id}';
                   final planned = settings[plannedKey] as int?;
-                  debugPrint('Analytics subject ${s.id}: pct=${percent.toStringAsFixed(2)}, planned=$planned');
+                  debugPrint('Analytics subject ${s.id}: pct=${percent == null ? 'null' : percent.toStringAsFixed(2)}, planned=$planned');
                   return _SubjectAnalyticsCard(
                     subject: s,
-                    percentage: percent,
+                    percentage: percent ?? 0.0,
                     summary: summary,
                     plannedTotal: planned,
                     canMiss: _calculateCanMiss(summary['held'] ?? 0, summary['attended'] ?? 0, planned: planned),
@@ -61,7 +62,7 @@ class AnalyticsScreen extends ConsumerWidget {
     );
   }
 
-  Map<String, dynamic> _calculateOverview(List<Subject> subjects, List<AttendanceRecord> attendance) {
+  Map<String, dynamic> _calculateOverview(List<Subject> subjects, List<AttendanceRecord> attendance, String massRule) {
 
     int held = 0;
     int attended = 0;
@@ -75,6 +76,27 @@ class AnalyticsScreen extends ConsumerWidget {
         cancelled += 1;
         continue;
       }
+
+      // Handle mass-bunk according to massRule. For other statuses, count
+      // held and missed/attended accordingly.
+      if (record.status == AttendanceStatus.massBunk) {
+        // mass-bunk is a special event
+        if (massRule == 'cancelled') {
+          // don't count
+          massBunk += 1;
+          continue;
+        }
+        // count as held
+        held += 1;
+        massBunk += 1;
+        if (massRule == 'present') {
+          attended += 1;
+        }
+        // if massRule == 'absent' we count held but do NOT increment missed here
+        continue;
+      }
+
+      // Non-mass-bunk records
       held += 1;
       switch (record.status) {
         case AttendanceStatus.present:
@@ -87,12 +109,9 @@ class AnalyticsScreen extends ConsumerWidget {
           extra += 1;
           attended += 1;
           break;
-        case AttendanceStatus.massBunk:
-          // treat as missed for percentage but also count separately
-          missed += 1;
-          massBunk += 1;
-          break;
         case AttendanceStatus.noClass:
+          break;
+        default:
           break;
       }
     }
@@ -149,6 +168,7 @@ class AnalyticsScreen extends ConsumerWidget {
     var risky = 0;
     for (final subject in subjects) {
       final pct = attendanceRepo.percentageForSubject(subject.id);
+      if (pct == null) continue; // no record -> skip
       if (pct >= 85) {
         safe += 1;
       } else if (pct >= 75) {

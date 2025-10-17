@@ -16,7 +16,8 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final greeting = ref.watch(greetingProvider);
     final selectedDate = ref.watch(selectedDateProvider);
-    final overallAttendance = ref.watch(overallAttendanceProvider);
+  final overallAttendance = ref.watch(overallAttendanceProvider);
+  final overallHeld = ref.watch(overallHeldProvider);
   final atRiskSubjects = ref.watch(atRiskSubjectsProvider);
   final attendanceRepo = ref.read(attendanceProvider.notifier);
     final todaysClasses = ref.watch(todaysClassesProvider);
@@ -31,14 +32,15 @@ class DashboardScreen extends ConsumerWidget {
               greeting: greeting,
               date: DateUtilsX.fullDate.format(selectedDate),
               overallAttendance: overallAttendance,
+              overallHeld: overallHeld,
               atRiskCount: atRiskSubjects.length,
             ),
             const SizedBox(height: 20),
 
             // Quick stats tiles
             Row(
-              children: [
-                Expanded(child: _statTile('Overall %', '${overallAttendance.toStringAsFixed(1)}%', color: AppColors.gradientStart)),
+                children: [
+                Expanded(child: _statTile('Overall %', overallHeld == 0 ? 'No data' : '${overallAttendance.toStringAsFixed(1)}%', color: AppColors.gradientStart)),
                 const SizedBox(width: 12),
                 Expanded(child: _statTile('At-risk', '${atRiskSubjects.length}', color: Colors.orangeAccent)),
                 const SizedBox(width: 12),
@@ -64,13 +66,13 @@ class DashboardScreen extends ConsumerWidget {
                   final planned = settingsMap['subject_total_${s.id}'] as int?;
                   // Debug/logging to help trace any mismatch between displayed percentage
                   // and "at-risk" decision. Remove or guard behind kDebugMode later.
-                  debugPrint('AtRisk check: ${s.name} (id=${s.id}) -> pct=${pct.toStringAsFixed(2)}, held=$held, attended=$attended, planned=$planned');
+                  debugPrint('AtRisk check: ${s.name} (id=${s.id}) -> pct=${pct == null ? 'null' : pct.toStringAsFixed(2)}, held=$held, attended=$attended, planned=$planned');
                   final need = _needToAttend(held, attended, planned: planned);
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: GestureDetector(
                       onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SubjectDetailPage(subject: s, records: ref.read(attendanceProvider).where((r) => r.subjectId == s.id).toList()))),
-                      child: _ribbonSubjectCard(context, s, pct, needToAttend: need, fullWidth: true),
+                      child: _ribbonSubjectCard(context, s, pct, held: held, needToAttend: need, fullWidth: true),
                     ),
                   );
                 }),
@@ -168,12 +170,14 @@ class _HeaderCard extends StatelessWidget {
     required this.greeting,
     required this.date,
     required this.overallAttendance,
+    required this.overallHeld,
     required this.atRiskCount,
   });
 
   final String greeting;
   final String date;
   final double overallAttendance;
+  final int overallHeld;
   final int atRiskCount;
 
   @override
@@ -227,7 +231,7 @@ class _HeaderCard extends StatelessWidget {
                 children: [
                   const TextSpan(text: 'Overall attendance: '),
                   TextSpan(
-                    text: '${overallAttendance.toStringAsFixed(1)}%',
+                    text: overallHeld == 0 ? 'No data' : '${overallAttendance.toStringAsFixed(1)}%',
                     style: TextStyle(
                       color: overallColor,
                       fontWeight: FontWeight.w700,
@@ -268,7 +272,7 @@ Widget _statTile(String title, String value, {required Color color}) {
   );
 }
 
-Widget _ribbonSubjectCard(BuildContext context, Subject subject, double percentage, {int? needToAttend, bool fullWidth = false}) {
+Widget _ribbonSubjectCard(BuildContext context, Subject subject, double? percentage, {int held = 0, int? needToAttend, bool fullWidth = false}) {
   final color = Color(int.parse('0xff${subject.color.replaceAll('#', '')}'));
   final card = ClipRRect(
     borderRadius: BorderRadius.circular(14),
@@ -302,10 +306,13 @@ Widget _ribbonSubjectCard(BuildContext context, Subject subject, double percenta
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Text('${percentage.toStringAsFixed(1)}%', style: TextStyle(color: percentage >= 75 ? Colors.green : Colors.redAccent, fontWeight: FontWeight.w800)),
+              // If there are no held classes or percentage is null, show 'No record'
+              held == 0 || percentage == null
+                ? Text('No record', style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w600))
+                : Text('${percentage.toStringAsFixed(1)}%', style: TextStyle(color: percentage >= 75 ? Colors.green : Colors.redAccent, fontWeight: FontWeight.w800)),
                     const Spacer(),
                     // small pill showing 'Needs attention' only when genuinely at-risk
-                    if (percentage < 75)
+              if (percentage != null && percentage < 75)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(color: Colors.orangeAccent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
@@ -383,7 +390,15 @@ class _CompactClassTile extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  TextButton(onPressed: onTap, child: const Text('Mark')),
+                  TextButton(
+                    onPressed: onTap,
+                    style: TextButton.styleFrom(
+                      foregroundColor: item.record != null ? Colors.green : null,
+                    ),
+                    child: item.record != null
+                        ? Row(mainAxisSize: MainAxisSize.min, children: const [Icon(Icons.check_circle_outline, size: 18), SizedBox(width: 6), Text('Marked')])
+                        : const Text('Mark'),
+                  ),
                 ],
               ),
             ),

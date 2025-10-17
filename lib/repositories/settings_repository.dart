@@ -64,7 +64,7 @@ class SettingsRepository extends StateNotifier<AsyncValue<Map<String, dynamic>>>
   /// Store or remove planned total classes for a subject.
   /// If [total] is null, the entry is removed.
   Future<void> setSubjectPlannedClasses(String subjectId, int? total) async {
-    final key = 'subject_total_\$subjectId';
+    final key = 'subject_total_$subjectId';
     if (total == null) {
       await _box.delete(key);
     } else {
@@ -75,7 +75,7 @@ class SettingsRepository extends StateNotifier<AsyncValue<Map<String, dynamic>>>
 
   /// Store per-schedule class count. If [count] is null, remove the entry.
   Future<void> setScheduleClassCount(String scheduleId, int? count) async {
-    final key = 'schedule_count_\$scheduleId';
+    final key = 'schedule_count_$scheduleId';
     if (count == null) {
       await _box.delete(key);
     } else {

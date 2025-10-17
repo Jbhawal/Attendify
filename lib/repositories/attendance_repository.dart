@@ -71,10 +71,11 @@ class AttendanceRepository extends StateNotifier<List<AttendanceRecord>> {
       ..sort((a, b) => a.date.compareTo(b.date));
   }
 
-  double percentageForSubject(String subjectId) {
+  double? percentageForSubject(String subjectId) {
     final records = recordsForSubject(subjectId);
     if (records.isEmpty) {
-      return 100;
+      // No records -> no percentage available
+      return null;
     }
     // read mass bunk rule from settings box (defaults to 'present')
     String massRule = Hive.box(settingsBoxName).get('mass_bunk_rule') as String? ?? 'present';
@@ -95,7 +96,8 @@ class AttendanceRepository extends StateNotifier<List<AttendanceRecord>> {
       }
     }
     if (total == 0) {
-      return 100;
+      // No held classes counted (e.g., all marked as noClass or cancelled)
+      return null;
     }
     return attended / total * 100;
   }
@@ -117,8 +119,9 @@ class AttendanceRepository extends StateNotifier<List<AttendanceRecord>> {
           held += r.count;
           attended += r.count;
         } else if (massRule == 'absent') {
+          // Mass-bunk treated as held, but 'missed' should only count
+          // explicit absences by the user. Do not increment 'missed' here.
           held += r.count;
-          missed += r.count;
         }
       } else {
         held += r.count;

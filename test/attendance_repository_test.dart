@@ -71,8 +71,8 @@ void main() {
         status: AttendanceStatus.absent,
       );
 
-      final percentage = repository.percentageForSubject(subjectId);
-      expect(percentage, closeTo(66.6, 0.5));
+  final percentage = repository.percentageForSubject(subjectId)!;
+  expect(percentage, closeTo(66.6, 0.5));
     });
   });
 }

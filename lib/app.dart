@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:math';
 
@@ -9,6 +10,7 @@ import 'features/profile/profile_screen.dart';
 import 'features/analytics/analytics_screen.dart';
 import 'theme/app_theme.dart';
 import 'providers.dart';
+import 'widgets/attendify_text_field.dart';
 
 class AttendifyApp extends ConsumerStatefulWidget {
   const AttendifyApp({super.key});
@@ -26,6 +28,7 @@ class _OnboardingPage extends ConsumerStatefulWidget {
 
 class _OnboardingPageState extends ConsumerState<_OnboardingPage> {
   final TextEditingController _controller = TextEditingController();
+  bool _nameError = false;
 
   Future<void> _saveAndContinue(String? name) async {
     if (name != null && name.isNotEmpty) {
@@ -69,14 +72,14 @@ class _OnboardingPageState extends ConsumerState<_OnboardingPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Logo placeholder — reuse app title styling
-              const FlutterLogo(size: 96),
+              // Logo image from assets
+              Image.asset('assets/logo.png', width: 96, height: 96, fit: BoxFit.cover),
               const SizedBox(height: 12),
               Text('Attendify', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
               const SizedBox(height: 28),
               Text('Welcome! What should we call you?', style: theme.textTheme.titleMedium),
               const SizedBox(height: 12),
-              TextField(controller: _controller, decoration: const InputDecoration(hintText: 'Enter your full name'), textCapitalization: TextCapitalization.words),
+              AttendifyTextField(controller: _controller, label: 'Full name', isRequired: true, showError: _nameError, errorText: 'Please enter a name', textCapitalization: TextCapitalization.words),
               const SizedBox(height: 18),
               Row(
                 children: [
@@ -94,7 +97,13 @@ class _OnboardingPageState extends ConsumerState<_OnboardingPage> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: FilledButton(
-                      onPressed: () => _saveAndContinue(_controller.text.trim()),
+                      onPressed: () {
+                        if (_controller.text.trim().isEmpty) {
+                          setState(() => _nameError = true);
+                          return;
+                        }
+                        _saveAndContinue(_controller.text.trim());
+                      },
                       child: const Text('Save'),
                     ),
                   ),
@@ -110,6 +119,7 @@ class _OnboardingPageState extends ConsumerState<_OnboardingPage> {
 
 class _AttendifyAppState extends ConsumerState<AttendifyApp> {
   int _currentIndex = 0;
+  bool _onboardingPreviewPushed = false;
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   final _pages = [
@@ -124,6 +134,14 @@ class _AttendifyAppState extends ConsumerState<AttendifyApp> {
   Widget build(BuildContext context) {
     // Prompt for first-time setup (name + mass-bunk rule)
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // In debug builds allow previewing onboarding without clearing data.
+      final nav = _navigatorKey.currentState;
+      if (kDebugMode && !_onboardingPreviewPushed) {
+        _onboardingPreviewPushed = true;
+        nav?.push(MaterialPageRoute(builder: (_) => const _OnboardingPage()));
+        return;
+      }
+
       // If onboarding is required, push a separate route that runs the dialog flow
       final settings = ref.read(settingsProvider);
       final hasName = settings.when(
@@ -132,7 +150,6 @@ class _AttendifyAppState extends ConsumerState<AttendifyApp> {
         error: (_, __) => false,
       );
       if (!hasName) {
-        final nav = _navigatorKey.currentState;
         nav?.push(MaterialPageRoute(builder: (_) => const _OnboardingPage()));
       }
     });
@@ -149,6 +166,14 @@ class _AttendifyAppState extends ConsumerState<AttendifyApp> {
             child: _pages[_currentIndex.clamp(0, _pages.length - 1)],
           ),
         ),
+        // Debug-only quick preview button for onboarding (doesn't clear stored data)
+        floatingActionButton: kDebugMode
+            ? FloatingActionButton(
+                onPressed: () => _navigatorKey.currentState?.push(MaterialPageRoute(builder: (_) => const _OnboardingPage())),
+                child: const Icon(Icons.person),
+                tooltip: 'Preview onboarding',
+              )
+            : null,
         bottomNavigationBar: NavigationBar(
           height: 68,
           surfaceTintColor: Colors.white,

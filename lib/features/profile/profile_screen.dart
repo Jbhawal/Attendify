@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../../providers.dart';
 import 'exports_page.dart';
+import '../../widgets/attendify_text_field.dart';
 
 // Feature flag: archive exports UI in profile. Set to false to hide the export
 const bool kProfileExportsArchived = true;
@@ -29,16 +30,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Future<void> _editTextDialog({required String title, String? initial, required Future<void> Function(String?) onSave}) async {
     final controller = TextEditingController(text: initial ?? '');
+    bool nameError = false;
     final result = await showDialog<String?>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: TextField(controller: controller, decoration: const InputDecoration(hintText: '')),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.of(ctx).pop(controller.text.trim()), child: const Text('Save')),
-        ],
-      ),
+      builder: (ctx) => StatefulBuilder(builder: (ctx2, setState) {
+        return AlertDialog(
+          title: Text(title),
+          content: AttendifyTextField(controller: controller, label: '', isRequired: true, showError: nameError),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Cancel')),
+            FilledButton(onPressed: () {
+              if (controller.text.trim().isEmpty) {
+                setState(() => nameError = true);
+                return;
+              }
+              Navigator.of(ctx).pop(controller.text.trim());
+            }, child: const Text('Save')),
+          ],
+        );
+      }),
     );
 
     if (result != null) {
@@ -432,11 +442,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         // ignore: use_build_context_synchronously
                         final filename = await showDialog<String?>(context: dialogContext, builder: (ctx) {
                           final controller = TextEditingController(text: suggested);
-                          return AlertDialog(
-                            title: const Text('Save CSV as'),
-                            content: TextField(controller: controller, decoration: const InputDecoration(hintText: 'Filename')),
-                            actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.of(ctx).pop(controller.text.trim()), child: const Text('Save'))],
-                          );
+                            bool filenameError = false;
+                            return StatefulBuilder(builder: (ctx2, setState) => AlertDialog(
+                              title: const Text('Save CSV as'),
+                              content: AttendifyTextField(controller: controller, label: 'Filename', isRequired: true, showError: filenameError, textCapitalization: TextCapitalization.none),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Cancel')),
+                                FilledButton(onPressed: () {
+                                  if (controller.text.trim().isEmpty) {
+                                    setState(() => filenameError = true);
+                                    return;
+                                  }
+                                  Navigator.of(ctx).pop(controller.text.trim());
+                                }, child: const Text('Save')),
+                              ],
+                            ));
                         });
 
                         if (!mounted) return;
@@ -487,11 +507,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         // ignore: use_build_context_synchronously
                         final filenameX = await showDialog<String?>(context: dialogContextX, builder: (ctx) {
                           final controller = TextEditingController(text: suggestedX);
-                          return AlertDialog(
+                          bool filenameErrorX = false;
+                          return StatefulBuilder(builder: (ctx2, setState) => AlertDialog(
                             title: const Text('Save Excel as'),
-                            content: TextField(controller: controller, decoration: const InputDecoration(hintText: 'Filename')),
-                            actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.of(ctx).pop(controller.text.trim()), child: const Text('Save'))],
-                          );
+                            content: AttendifyTextField(controller: controller, label: 'Filename', isRequired: true, showError: filenameErrorX, textCapitalization: TextCapitalization.none),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Cancel')),
+                              FilledButton(onPressed: () {
+                                if (controller.text.trim().isEmpty) {
+                                  setState(() => filenameErrorX = true);
+                                  return;
+                                }
+                                Navigator.of(ctx).pop(controller.text.trim());
+                              }, child: const Text('Save')),
+                            ],
+                          ));
                         });
 
                         if (!mounted) return;
@@ -571,14 +601,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   onTap: () async {
                     final messenger = ScaffoldMessenger.maybeOf(context);
                     final controller = TextEditingController();
-                    final submitted = await showDialog<bool?>(context: context, builder: (ctx) => AlertDialog(
+                    bool feedbackError = false;
+                    final submitted = await showDialog<bool?>(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setState) => AlertDialog(
                           title: const Text('Send feedback'),
-                          content: TextField(controller: controller, maxLines: 6, decoration: const InputDecoration(hintText: 'Describe the issue...')),
+                          content: AttendifyTextField(controller: controller, label: 'Describe the issue...', isRequired: true, showError: feedbackError),
                           actions: [
                             TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-                            FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Send')),
+                            FilledButton(onPressed: () {
+                              if (controller.text.trim().isEmpty) {
+                                setState(() => feedbackError = true);
+                                return;
+                              }
+                              Navigator.of(ctx).pop(true);
+                            }, child: const Text('Send')),
                           ],
-                        ));
+                        )));
                     if (submitted == true && controller.text.trim().isNotEmpty) {
                       // For now: copy feedback to clipboard as a placeholder for sending
                       await Clipboard.setData(ClipboardData(text: controller.text.trim()));

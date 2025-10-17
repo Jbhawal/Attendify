@@ -142,7 +142,9 @@ Future<void> showAttendanceBottomSheet({
                         return;
                       }
             final settings = ref.read(settingsProvider).value ?? <String, dynamic>{};
-            final scheduleCount = settings['schedule_count_\${item.schedule.id}'] as int? ?? 1;
+            var scheduleCount = settings['schedule_count_${item.schedule.id}'] as int?;
+            scheduleCount ??= settings[r'schedule_count_$scheduleId'] as int?;
+            scheduleCount ??= 1;
             await ref
               .read(attendanceProvider.notifier)
               .markAttendance(
