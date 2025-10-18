@@ -6,6 +6,7 @@ import '../../models/attendance_record.dart';
 import '../../models/subject.dart';
 import '../../models/schedule_entry.dart';
 import '../../providers.dart';
+import '../../widgets/responsive_page.dart';
 
 Future<void> showAddPastAttendanceSheet({
   required BuildContext context,
@@ -49,7 +50,7 @@ Future<void> showAddPastAttendanceSheet({
           }
         }
 
-        return Padding(
+        return ResponsivePage(
           padding: EdgeInsets.fromLTRB(20, 24, 20, bottomInset + 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,

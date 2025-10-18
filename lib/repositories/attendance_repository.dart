@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 import 'package:uuid/uuid.dart';
 
@@ -28,30 +29,43 @@ class AttendanceRepository extends StateNotifier<List<AttendanceRecord>> {
     int count = 1,
     String? notes,
   }) async {
+    // Add logging to help diagnose intermittent failures when saving records.
     final normalizedDate = DateTime(date.year, date.month, date.day);
-    final existing = _box.values.cast<AttendanceRecord>().firstWhere(
-          (record) =>
-              record.subjectId == subjectId && _isSameDay(record.date, date),
-          orElse: () =>
-              AttendanceRecord(id: '', subjectId: '', date: DateTime(0), status: status),
+    debugPrint('markAttendance: subject=$subjectId date=$normalizedDate status=$status count=$count notes=${notes != null && notes.isNotEmpty}');
+    try {
+      final existing = _box.values.cast<AttendanceRecord>().firstWhere(
+            (record) => record.subjectId == subjectId && _isSameDay(record.date, normalizedDate),
+            orElse: () => AttendanceRecord(id: '', subjectId: '', date: DateTime(0), status: status),
+          );
+      if (existing.id.isNotEmpty) {
+        await _box.put(
+          existing.id,
+          existing.copyWith(status: status, count: count, notes: notes, date: normalizedDate),
         );
-    if (existing.id.isNotEmpty) {
-      await _box.put(
-        existing.id,
-        existing.copyWith(status: status, count: count, notes: notes, date: normalizedDate),
-      );
-    } else {
-      final record = AttendanceRecord(
-        id: _uuid.v4(),
-        subjectId: subjectId,
-        date: normalizedDate,
-        status: status,
-        count: count,
-        notes: notes,
-      );
-      await _box.put(record.id, record);
+      } else {
+        final record = AttendanceRecord(
+          id: _uuid.v4(),
+          subjectId: subjectId,
+          date: normalizedDate,
+          status: status,
+          count: count,
+          notes: notes,
+        );
+        await _box.put(record.id, record);
+      }
+    } catch (e, st) {
+      // Log any Hive/storage error so we can inspect in crash reports or console
+      debugPrint('markAttendance ERROR: $e');
+      debugPrint(st.toString());
+      rethrow;
+    } finally {
+      // Always refresh state from the box to ensure in-memory state matches persisted data
+      try {
+        state = _box.values.cast<AttendanceRecord>().toList();
+      } catch (e) {
+        debugPrint('markAttendance: failed to refresh state: $e');
+      }
     }
-    state = _box.values.cast<AttendanceRecord>().toList();
   }
 
   Future<void> deleteRecord(String id) async {

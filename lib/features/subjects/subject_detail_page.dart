@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../models/attendance_record.dart';
 import '../../models/subject.dart';
 import '../../constants/app_colors.dart';
+import '../../widgets/responsive_page.dart';
 
 class SubjectDetailPage extends StatefulWidget {
   const SubjectDetailPage({super.key, required this.subject, required this.records});
@@ -74,7 +75,7 @@ class _SubjectDetailPageState extends State<SubjectDetailPage> {
 
     return Scaffold(
       appBar: AppBar(title: Text(widget.subject.name)),
-      body: Padding(
+      body: ResponsivePage(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

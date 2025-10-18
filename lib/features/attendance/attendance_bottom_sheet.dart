@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../models/attendance_record.dart';
 import '../../models/dashboard_item.dart';
 import '../../providers.dart';
+import '../../widgets/responsive_page.dart';
 
 Future<void> showAttendanceBottomSheet({
   required BuildContext context,
@@ -26,7 +27,7 @@ Future<void> showAttendanceBottomSheet({
       final bottomInset = MediaQuery.of(context).viewInsets.bottom;
       return StatefulBuilder(
         builder: (context, setModalState) {
-          return Padding(
+          return ResponsivePage(
             padding: EdgeInsets.only(
               left: 20,
               right: 20,

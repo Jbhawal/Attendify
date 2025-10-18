@@ -8,6 +8,7 @@ import 'subject_detail_page.dart';
 import '../attendance/add_past_attendance_sheet.dart';
 import '../../constants/app_colors.dart';
 import '../../widgets/attendify_text_field.dart';
+import '../../widgets/responsive_page.dart';
 
 class SubjectsScreen extends ConsumerWidget {
   const SubjectsScreen({super.key});
@@ -29,12 +30,13 @@ class SubjectsScreen extends ConsumerWidget {
               label: const Text('Add Subject'),
               icon: const Icon(Icons.add_rounded),
             ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: subjects.isEmpty
-            ? _emptyState(context, ref)
-            : Column(
-                children: [
+      body: ResponsivePage(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: subjects.isEmpty
+              ? _emptyState(context, ref)
+              : Column(
+                  children: [
                   // Summary row: subject count + average attendance
                   Builder(builder: (context) {
                     // Respect the global mass-bunk rule when computing averages (same logic as per-subject cards)
@@ -131,7 +133,8 @@ class SubjectsScreen extends ConsumerWidget {
                     ),
                   ),
                 ],
-              ),
+                  ),
+        ),
       ),
     );
   }
@@ -200,10 +203,10 @@ class SubjectsScreen extends ConsumerWidget {
         final bottomInset = MediaQuery.of(context).viewInsets.bottom;
         return StatefulBuilder(
           builder: (context, setState) {
-            return Padding(
-              padding: EdgeInsets.fromLTRB(20, 24, 20, bottomInset + 24),
-              child: SingleChildScrollView(
-                child: Column(
+            return ResponsivePage(
+                  padding: EdgeInsets.fromLTRB(20, 24, 20, bottomInset + 24),
+                  child: SingleChildScrollView(
+                    child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -374,13 +377,11 @@ class _SubjectCardState extends ConsumerState<_SubjectCard> {
                           const SizedBox(height: 6),
                           Row(children: [
                             Expanded(child: Text(subject.professor.trim().isNotEmpty ? subject.professor : 'No teacher info', style: TextStyle(color: Colors.grey[700], fontSize: 14))),
-                            const SizedBox(width: 12),
-                            Text('No venue', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
                           ]),
                           const SizedBox(height: 4),
                           Text('${subject.credits} credits', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
                           const SizedBox(height: 6),
-                          Row(
+                              Row(
                             children: [
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -388,6 +389,13 @@ class _SubjectCardState extends ConsumerState<_SubjectCard> {
                                 child: Text(percentageLabel, style: const TextStyle(fontWeight: FontWeight.w700)),
                               ),
                               const Spacer(),
+                              // Add past attendance button (small plus) placed next to edit/delete
+                              IconButton(
+                                onPressed: () => showAddPastAttendanceSheet(context: context, ref: ref, subject: subject),
+                                tooltip: 'Add past attendance',
+                                icon: const Icon(Icons.add_rounded, size: 18),
+                              ),
+                              const SizedBox(width: 4),
                               IconButton(onPressed: onEdit, tooltip: 'Edit', icon: const Icon(Icons.edit_rounded, size: 18)),
                               const SizedBox(width: 4),
                               IconButton(onPressed: onDelete, tooltip: 'Delete', icon: const Icon(Icons.delete_outline_rounded, size: 18)),
@@ -433,14 +441,7 @@ class _SubjectCardState extends ConsumerState<_SubjectCard> {
                               label: const Text('See full class history'),
                             ),
                           ),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton.icon(
-                              onPressed: () => showAddPastAttendanceSheet(context: context, ref: ref, subject: subject),
-                              icon: const Icon(Icons.history_toggle_off),
-                              label: const Text('Add past attendance'),
-                            ),
-                          ),
+                          // 'Add past attendance' moved to header as a compact icon button
                         ],
                       ),
                     ],

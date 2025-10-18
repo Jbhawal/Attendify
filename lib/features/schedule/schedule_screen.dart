@@ -7,6 +7,7 @@ import '../../models/subject.dart';
 import '../../providers.dart';
 import '../../constants/app_colors.dart';
 import '../../widgets/attendify_text_field.dart';
+import '../../widgets/responsive_page.dart';
 
 class ScheduleScreen extends ConsumerStatefulWidget {
   const ScheduleScreen({super.key});
@@ -44,10 +45,11 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
         label: const Text('Add Class'),
         icon: const Icon(Icons.add_rounded),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
+      body: ResponsivePage(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
@@ -141,7 +143,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                                         children: [
                                           Text(subject.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                                           const SizedBox(height: 6),
-                                          Text('${entry.startTime} · ${entry.endTime} · ${entry.venue}', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                                          Text('${entry.startTime} · ${entry.endTime}', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
                                         ],
                                       ),
                                     ),
@@ -156,7 +158,8 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                       },
                     ),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -196,7 +199,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     TimeOfDay endTime = _parseTimeOfDay(entry?.endTime) ?? const TimeOfDay(hour: 10, minute: 0);
     final startController = TextEditingController(text: _formatTimeOfDay(startTime));
     final endController = TextEditingController(text: _formatTimeOfDay(endTime));
-    final venueController = TextEditingController(text: entry?.venue ?? '');
+  // Venue/room field removed from UI. Keep model compatible by using an empty string when saving.
     final settingsMap = ref.read(settingsProvider).value ?? <String, dynamic>{};
     String? classesInitial;
     if (entry != null) {
@@ -229,7 +232,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
           bool subjectError = false;
           bool startError = false;
           bool endError = false;
-          return Padding(
+          return ResponsivePage(
             padding: EdgeInsets.fromLTRB(20, 24, 20, bottomInset + 24),
             child: SingleChildScrollView(
               child: Column(
@@ -301,9 +304,32 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                     label: 'End Time',
                   ),
                   const SizedBox(height: 12),
-                  AttendifyTextField(controller: venueController, label: 'Venue / Room'),
-                  const SizedBox(height: 12),
-                  AttendifyTextField(controller: classesController, label: 'Number of classes to mark', keyboardType: TextInputType.number, isRequired: true, showError: classesError, errorText: 'Enter a positive number'),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: AttendifyTextField(controller: classesController, label: 'Number of classes to mark', keyboardType: TextInputType.number, isRequired: true, showError: classesError, errorText: 'Enter a positive number'),
+                      ),
+                      const SizedBox(width: 8),
+                      // Help bubble: explains what to enter in the classes field
+                      Tooltip(
+                        message: 'What to enter',
+                        child: IconButton(
+                          icon: const Icon(Icons.help_outline, size: 20),
+                          onPressed: () {
+                            showDialog<void>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('About "Number of classes to mark"'),
+                                content: const Text('Enter how many classes this subject has today. This number adds or deducts from attendance when marking present or absent. Use a whole positive number, e.g. 2.'),
+                                actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Got it'))],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
@@ -323,21 +349,22 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                         final formattedStart = _formatTimeOfDay(startTime);
                         final formattedEnd = _formatTimeOfDay(endTime);
                         // No auto-attendance creation. Save planned total classes for the subject.
-                        if (entry == null) {
+                          if (entry == null) {
                           final classesText = classesController.text.trim();
                           final num = int.tryParse(classesText);
                           if (classesText.isEmpty || num == null || num <= 0) {
                             setState(() { classesError = true; });
                             return;
                           }
-                          final scheduleId = await ref.read(scheduleProvider.notifier).addEntry(subjectId: selectedSubjectId!, dayOfWeek: day, startTime: formattedStart, endTime: formattedEnd, venue: venueController.text);
+                          final scheduleId = await ref.read(scheduleProvider.notifier).addEntry(subjectId: selectedSubjectId!, dayOfWeek: day, startTime: formattedStart, endTime: formattedEnd, venue: '');
                           // store per-schedule class count in settings so attendance marking can use it
                           await ref.read(settingsProvider.notifier).setScheduleClassCount(scheduleId, num);
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Class added — saved class count: $num'), duration: const Duration(seconds: 2)));
                           }
                         } else {
-                          await ref.read(scheduleProvider.notifier).updateEntry(entry.copyWith(subjectId: selectedSubjectId!, dayOfWeek: day, startTime: formattedStart, endTime: formattedEnd, venue: venueController.text));
+                          // Update the entry and clear venue (field removed from UI)
+                          await ref.read(scheduleProvider.notifier).updateEntry(entry.copyWith(subjectId: selectedSubjectId!, dayOfWeek: day, startTime: formattedStart, endTime: formattedEnd, venue: ''));
                           // Persist per-schedule class count if provided; if empty, remove the stored value
                           final classesText = classesController.text.trim();
                           final num = int.tryParse(classesText);

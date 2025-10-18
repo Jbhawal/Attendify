@@ -13,6 +13,7 @@ import 'package:path/path.dart' as p;
 import '../../providers.dart';
 import 'exports_page.dart';
 import '../../widgets/attendify_text_field.dart';
+import '../../widgets/responsive_page.dart';
 
 // Feature flag: archive exports UI in profile. Set to false to hide the export
 const bool kProfileExportsArchived = true;
@@ -78,11 +79,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         data: (map) {
           final displayName = _name.isEmpty ? 'Your Name' : _name;
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+          return ResponsivePage(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
                 // Header card with colored background
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 28),
@@ -312,7 +314,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   },
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(),
 
                 // Reminder toggle
                 SwitchListTile(
@@ -688,8 +690,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
                 const SizedBox(height: 18),
               ],
-            ),
-          );
+            ), // Column
+          ), // SingleChildScrollView
+        ); // ResponsivePage
         },
       ),
     );

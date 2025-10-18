@@ -6,6 +6,7 @@ import '../../models/attendance_record.dart';
 import '../../models/subject.dart';
 import '../../providers.dart';
 import '../../constants/app_colors.dart';
+import '../../widgets/responsive_page.dart';
 
 class AnalyticsScreen extends ConsumerWidget {
   const AnalyticsScreen({super.key});
@@ -27,39 +28,41 @@ class AnalyticsScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Analytics')),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: ListView(
-          children: [
-            _OverviewCard(overview: overview),
-            const SizedBox(height: 20),
-            _RiskDistributionCard(buckets: riskBuckets, t: t),
-            const SizedBox(height: 20),
-            _ConsistencyCard(consistency: consistency),
-            const SizedBox(height: 20),
-            if (subjects.isEmpty) _emptyState(context) else ...[
-              const Text('Subject-wise', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 12),
-                ...subjects.map((s) {
-                  final summary = attendanceRepo.summaryForSubject(s.id);
-                  final percent = attendanceRepo.percentageForSubject(s.id); // double?
-                  // Fix: interpolate subject id correctly into settings key
-                  final plannedKey = 'subject_total_${s.id}';
-                  final planned = settings[plannedKey] as int?;
-                  debugPrint('Analytics subject ${s.id}: pct=${percent == null ? 'null' : percent.toStringAsFixed(2)}, planned=$planned');
-                  return _SubjectAnalyticsCard(
-                    subject: s,
-                    percentage: percent ?? 0.0,
-                    summary: summary,
-                    plannedTotal: planned,
-                    canMiss: _calculateCanMiss(summary['held'] ?? 0, summary['attended'] ?? 0, planned: planned, t: t),
-                    needToAttend: _calculateNeedToAttend(summary['held'] ?? 0, summary['attended'] ?? 0, planned: planned, t: t),
-                    t: t,
-                  );
-                }),
-              // removed unnecessary .toList() in spread
+      body: ResponsivePage(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: ListView(
+            children: [
+              _OverviewCard(overview: overview),
+              const SizedBox(height: 20),
+              _RiskDistributionCard(buckets: riskBuckets, t: t),
+              const SizedBox(height: 20),
+              _ConsistencyCard(consistency: consistency),
+              const SizedBox(height: 20),
+              if (subjects.isEmpty) _emptyState(context) else ...[
+                const Text('Subject-wise', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 12),
+                  ...subjects.map((s) {
+                    final summary = attendanceRepo.summaryForSubject(s.id);
+                    final percent = attendanceRepo.percentageForSubject(s.id); // double?
+                    // Fix: interpolate subject id correctly into settings key
+                    final plannedKey = 'subject_total_${s.id}';
+                    final planned = settings[plannedKey] as int?;
+                    debugPrint('Analytics subject ${s.id}: pct=${percent == null ? 'null' : percent.toStringAsFixed(2)}, planned=$planned');
+                    return _SubjectAnalyticsCard(
+                      subject: s,
+                      percentage: percent ?? 0.0,
+                      summary: summary,
+                      plannedTotal: planned,
+                      canMiss: _calculateCanMiss(summary['held'] ?? 0, summary['attended'] ?? 0, planned: planned, t: t),
+                      needToAttend: _calculateNeedToAttend(summary['held'] ?? 0, summary['attended'] ?? 0, planned: planned, t: t),
+                      t: t,
+                    );
+                  }),
+                // removed unnecessary .toList() in spread
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -269,61 +272,46 @@ class _OverviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Polished full-width overview: large overall percent with a mini circular indicator and colored avatars for rows.
+  // overview percent removed from the UI; keep overview map for rows below
+
     return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), boxShadow: [
-        BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 18, offset: const Offset(0, 8)),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: [
+        BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 12, offset: const Offset(0, 6)),
       ]),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Overview', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 16,
-            runSpacing: 16,
-            children: [
-              _statTile('Subjects', overview['subjects'] as int? ?? 0),
-              _statTile('Classes Held', overview['held'] as int? ?? 0),
-              _statTile('Attended', overview['attended'] as int? ?? 0),
-              _statTile('Missed', overview['missed'] as int? ?? 0),
-              _statTile('Extra Classes', overview['extra'] as int? ?? 0),
-              _statTile('Mass bunk', overview['massBunk'] as int? ?? 0),
-              _statTile('Cancelled', overview['cancelled'] as int? ?? 0),
-              Container(
-                width: 140,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: Colors.indigo.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(18)),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('Overall %', style: TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 8),
-                  Text('${(overview['percentage'] as double? ?? 0).toStringAsFixed(1)}%', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                ]),
-              ),
-            ],
-          ),
-        ],
-      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Center(child: Text('Overview', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.grey[800]))),
+        ),
+        const Divider(height: 1),
+        const SizedBox(height: 8),
+
+        // Full-width rows with colored avatars
+        _fancyRow(Colors.indigo, Icons.menu_book, 'Subjects', '${overview['subjects'] as int? ?? 0}'),
+        _fancyRow(Colors.blue, Icons.event_available, 'Classes Held', '${overview['held'] as int? ?? 0}'),
+        _fancyRow(Colors.green, Icons.check_circle, 'Attended', '${overview['attended'] as int? ?? 0}'),
+        _fancyRow(Colors.redAccent, Icons.cancel, 'Missed', '${overview['missed'] as int? ?? 0}'),
+        _fancyRow(Colors.deepPurple, Icons.add_circle, 'Extra Classes', '${overview['extra'] as int? ?? 0}'),
+        _fancyRow(Colors.orange, Icons.group_off, 'Mass bunk', '${overview['massBunk'] as int? ?? 0}'),
+        _fancyRow(Colors.grey, Icons.block, 'Cancelled', '${overview['cancelled'] as int? ?? 0}'),
+      ]),
     );
   }
-
-  Widget _statTile(String label, int value) {
-    return Container(
-      width: 140,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(18)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('$value', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 8),
-        Text(label, style: const TextStyle(fontSize: 12)),
-      ]),
-    );
+  Widget _fancyRow(Color color, IconData icon, String label, String value) {
+    return Column(children: [
+      ListTile(
+        leading: CircleAvatar(backgroundColor: color.withValues(alpha: 0.12), child: Icon(icon, color: color, size: 20)),
+        title: Text(label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+        trailing: Text(value, style: TextStyle(color: Colors.grey[800], fontSize: 14, fontWeight: FontWeight.w800)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        dense: true,
+      ),
+      const Divider(height: 1),
+    ]);
   }
 }
-
-
-
-// _ProjectionCard removed because it was unused. Kept analytics UI minimal.
 
 class _RiskDistributionCard extends StatelessWidget {
   const _RiskDistributionCard({required this.buckets, required this.t});

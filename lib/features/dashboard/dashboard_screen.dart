@@ -9,6 +9,7 @@ import '../../utils/date_utils.dart';
 import '../attendance/attendance_bottom_sheet.dart';
 import '../attendance/add_past_attendance_sheet.dart';
 import '../../widgets/attendance_ring_card.dart';
+import '../../widgets/responsive_page.dart';
  
 
 class DashboardScreen extends ConsumerWidget {
@@ -27,12 +28,13 @@ class DashboardScreen extends ConsumerWidget {
   final settingsMap = ref.watch(settingsProvider).value ?? <String, dynamic>{};
   final threshold = (settingsMap['attendance_threshold'] as int?) ?? 75;
 
-  return Scaffold(
+    return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-          children: [
+          child: ResponsivePage(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 24),
+              children: [
             _HeaderCard(
               greeting: greeting,
               date: DateUtilsX.fullDate.format(selectedDate),
@@ -114,6 +116,7 @@ class DashboardScreen extends ConsumerWidget {
 
             const SizedBox(height: 80),
           ],
+          ),
         ),
       ),
     );
