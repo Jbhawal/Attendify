@@ -170,8 +170,8 @@ class _AttendifyAppState extends ConsumerState<AttendifyApp> {
         floatingActionButton: kDebugMode
             ? FloatingActionButton(
                 onPressed: () => _navigatorKey.currentState?.push(MaterialPageRoute(builder: (_) => const _OnboardingPage())),
-                child: const Icon(Icons.person),
                 tooltip: 'Preview onboarding',
+                child: const Icon(Icons.person),
               )
             : null,
         bottomNavigationBar: NavigationBar(

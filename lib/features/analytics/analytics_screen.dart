@@ -19,7 +19,7 @@ class AnalyticsScreen extends ConsumerWidget {
 
   final massRule = settings['mass_bunk_rule'] as String? ?? 'present';
   final overview = _calculateOverview(subjects, attendance, massRule);
-  final riskBuckets = _calculateRiskBuckets(subjects, attendanceRepo);
+  final riskBuckets = _calculateRiskBuckets(subjects, attendanceRepo, settings);
     final consistency = _calculateConsistency(attendance);
 
     return Scaffold(
@@ -162,11 +162,33 @@ class AnalyticsScreen extends ConsumerWidget {
     return (deficit / 0.25).ceil().clamp(0, 999);
   }
 
-  Map<String, int> _calculateRiskBuckets(List<Subject> subjects, dynamic attendanceRepo) {
+  Map<String, int> _calculateRiskBuckets(List<Subject> subjects, dynamic attendanceRepo, Map<String, dynamic> settings) {
     var safe = 0;
     var warning = 0;
     var risky = 0;
     for (final subject in subjects) {
+      // If a planned total is provided, compute canMiss and use it to influence risk
+      final plannedKey = 'subject_total_${subject.id}';
+      final planned = settings[plannedKey] as int?;
+      final summary = attendanceRepo.summaryForSubject(subject.id);
+      final held = summary['held'] ?? 0;
+      final attended = summary['attended'] ?? 0;
+
+      if (planned != null && planned > 0) {
+        final canMiss = _calculateCanMiss(held, attended, planned: planned);
+        // If no more classes can be missed under the planned total, mark as risky
+        if (canMiss <= 0) {
+          risky += 1;
+          continue;
+        }
+        // If only very few classes can be missed (threshold 2), mark as warning
+        if (canMiss <= 2) {
+          warning += 1;
+          continue;
+        }
+        // Otherwise fall through to percent-based classification
+      }
+
       final pct = attendanceRepo.percentageForSubject(subject.id);
       if (pct == null) continue; // no record -> skip
       if (pct >= 85) {

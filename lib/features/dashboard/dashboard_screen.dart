@@ -7,7 +7,9 @@ import '../../providers.dart';
 import '../subjects/subject_detail_page.dart';
 import '../../utils/date_utils.dart';
 import '../attendance/attendance_bottom_sheet.dart';
-import '../../models/subject.dart';
+import '../attendance/add_past_attendance_sheet.dart';
+import '../../widgets/attendance_ring_card.dart';
+ 
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -53,30 +55,41 @@ class DashboardScreen extends ConsumerWidget {
             if (atRiskSubjects.isNotEmpty) ...[
               _sectionTitle('Needs Attention'),
               const SizedBox(height: 12),
-              // Show Needs Attention subjects as a vertical full-width list (one after another)
-              Column(
-                children: List.generate(atRiskSubjects.length, (index) {
-                  final s = atRiskSubjects[index];
-                  final pct = attendanceRepo.percentageForSubject(s.id);
-                  final summary = attendanceRepo.summaryForSubject(s.id);
-                  final held = summary['held'] ?? 0;
-                  final attended = summary['attended'] ?? 0;
-                  final settingsMap = ref.watch(settingsProvider).value ?? <String, dynamic>{};
-                  // Fix: interpolate subject id into key correctly (was escaped previously)
-                  final planned = settingsMap['subject_total_${s.id}'] as int?;
-                  // Debug/logging to help trace any mismatch between displayed percentage
-                  // and "at-risk" decision. Remove or guard behind kDebugMode later.
-                  debugPrint('AtRisk check: ${s.name} (id=${s.id}) -> pct=${pct == null ? 'null' : pct.toStringAsFixed(2)}, held=$held, attended=$attended, planned=$planned');
-                  final need = _needToAttend(held, attended, planned: planned);
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: GestureDetector(
-                      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SubjectDetailPage(subject: s, records: ref.read(attendanceProvider).where((r) => r.subjectId == s.id).toList()))),
-                      child: _ribbonSubjectCard(context, s, pct, held: held, needToAttend: need, fullWidth: true),
-                    ),
-                  );
-                }),
-              ),
+              // Show Needs Attention subjects as a responsive grid of ring cards
+              LayoutBuilder(builder: (context, constraints) {
+                final crossAxisCount = constraints.maxWidth > 720 ? 3 : (constraints.maxWidth > 420 ? 2 : 1);
+                final spacing = 12.0;
+                return Wrap(
+                  spacing: spacing,
+                  runSpacing: spacing,
+                  children: atRiskSubjects.map((s) {
+                    final pct = attendanceRepo.percentageForSubject(s.id);
+                    final summary = attendanceRepo.summaryForSubject(s.id);
+                    final held = summary['held'] ?? 0;
+                    final attended = summary['attended'] ?? 0;
+                    final settingsMap = ref.watch(settingsProvider).value ?? <String, dynamic>{};
+                    final planned = settingsMap['subject_total_${s.id}'] as int?;
+                    debugPrint('AtRisk check: ${s.name} (id=${s.id}) -> pct=${pct == null ? 'null' : pct.toStringAsFixed(2)}, held=$held, attended=$attended, planned=$planned');
+                    // compute width for item using crossAxisCount
+                    final itemWidth = (constraints.maxWidth - (crossAxisCount - 1) * spacing) / crossAxisCount;
+                    final subjectColor = Color(int.parse('0xff${s.color.replaceAll('#', '')}'));
+                    return SizedBox(
+                      width: itemWidth,
+                      child: AttendanceRingCard(
+                        subjectId: s.id,
+                        subjectName: s.name,
+                        subjectCode: s.code,
+                        classesHeld: held,
+                        classesAttended: attended,
+                        plannedTotal: planned,
+                        subjectColor: subjectColor,
+                        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SubjectDetailPage(subject: s, records: ref.read(attendanceProvider).where((r) => r.subjectId == s.id).toList()))),
+                        onLongPress: () => showAddPastAttendanceSheet(context: context, ref: ref, subject: s),
+                      ),
+                    );
+                  }).toList(),
+                );
+              }),
               const SizedBox(height: 20),
             ],
 
@@ -103,19 +116,7 @@ class DashboardScreen extends ConsumerWidget {
   }
 }
 
-int _needToAttend(int held, int attended, {int? planned}) {
-  // Mirror logic from analytics: if planned total provided, calculate remaining must-attend
-  if (planned != null && planned > held) {
-    final remaining = planned - held;
-    final targetAttended = (0.75 * planned).ceil();
-    final need = (targetAttended - attended).clamp(0, remaining);
-    return need;
-  }
-  if (held == 0) return 0;
-  if (attended / held >= 0.75) return 0;
-  final deficit = (0.75 * held) - attended;
-  return (deficit / 0.25).ceil().clamp(0, 999);
-}
+// _needToAttend removed; logic centralized in analytics/screen or AttendanceRingCard where needed.
 
 Widget _sectionTitle(String title) {
   return Text(
@@ -272,73 +273,7 @@ Widget _statTile(String title, String value, {required Color color}) {
   );
 }
 
-Widget _ribbonSubjectCard(BuildContext context, Subject subject, double? percentage, {int held = 0, int? needToAttend, bool fullWidth = false}) {
-  final color = Color(int.parse('0xff${subject.color.replaceAll('#', '')}'));
-  final card = ClipRRect(
-    borderRadius: BorderRadius.circular(14),
-    child: Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 6))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // ribbon
-          Container(
-            height: 36,
-            decoration: BoxDecoration(gradient: LinearGradient(colors: [color, color.withValues(alpha: 0.9)])),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            child: Row(
-              children: [
-                Text(subject.code.toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13)),
-                const Spacer(),
-                Icon(Icons.warning_amber_rounded, color: Colors.white.withValues(alpha: 0.95), size: 18),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(subject.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.black87), maxLines: 2, overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-              // If there are no held classes or percentage is null, show 'No record'
-              held == 0 || percentage == null
-                ? Text('No record', style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w600))
-                : Text('${percentage.toStringAsFixed(1)}%', style: TextStyle(color: percentage >= 75 ? Colors.green : Colors.redAccent, fontWeight: FontWeight.w800)),
-                    const Spacer(),
-                    // small pill showing 'Needs attention' only when genuinely at-risk
-              if (percentage != null && percentage < 75)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(color: Colors.orangeAccent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
-                        child: Row(children: [
-                          Text('Needs', style: TextStyle(color: Colors.orangeAccent.shade700, fontWeight: FontWeight.w700, fontSize: 12)),
-                          if (needToAttend != null && needToAttend > 0) ...[
-                            const SizedBox(width: 6),
-                            Text('$needToAttend', style: TextStyle(color: Colors.orangeAccent.shade700, fontWeight: FontWeight.w900, fontSize: 12)),
-                          ]
-                        ]),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-
-  if (fullWidth) {
-    return SizedBox(width: double.infinity, child: card);
-  }
-  return SizedBox(width: 220, child: card);
-}
+// _ribbonSubjectCard removed; replaced by AttendanceRingCard in Needs Attention area.
 
 class _CompactClassTile extends StatelessWidget {
   const _CompactClassTile({required this.item, required this.onTap});

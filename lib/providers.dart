@@ -103,11 +103,28 @@ final atRiskSubjectsProvider = Provider<List<Subject>>((ref) {
   ref.watch(attendanceProvider);
   final attendanceRepo = ref.read(attendanceProvider.notifier);
 
+  final settings = ref.watch(settingsProvider).value ?? <String, dynamic>{};
+
   return subjects.where((subject) {
-    // Use the repository's percentage calculation which respects mass-bunk rule
+    // Use the repository's summary which respects mass-bunk rule
+    final summary = attendanceRepo.summaryForSubject(subject.id);
+    final held = summary['held'] ?? 0;
+    final attended = summary['attended'] ?? 0;
+
+    // If a planned total is provided, compute canMiss and only flag when
+    // canMiss <= 2 (user-requested threshold). This mirrors analytics logic.
+    final plannedKey = 'subject_total_${subject.id}';
+    final planned = settings[plannedKey] as int?;
+    if (planned != null && planned > held) {
+      final remaining = planned - held;
+      final targetAttended = (0.75 * planned).ceil();
+      final neededNow = (targetAttended - attended).clamp(0, planned);
+      final canMiss = (remaining - neededNow).clamp(0, 999);
+      return canMiss <= 2;
+    }
+
+    // Otherwise fall back to percentage-based rule
     final percentage = attendanceRepo.percentageForSubject(subject.id);
-    // If there are no records percentageForSubject returns null, so
-    // subjects with no records won't be considered at-risk.
     if (percentage == null) return false;
     return percentage < 75;
   }).toList();

@@ -78,10 +78,18 @@ class AttendanceRepository extends StateNotifier<List<AttendanceRecord>> {
       return null;
     }
     // read mass bunk rule from settings box (defaults to 'present')
-    String massRule = Hive.box(settingsBoxName).get('mass_bunk_rule') as String? ?? 'present';
-    final attended = records
-        .where((record) => record.status == AttendanceStatus.present || record.status == AttendanceStatus.extraClass)
-        .fold<int>(0, (acc, r) => acc + r.count);
+    String massRule;
+    if (Hive.isBoxOpen(settingsBoxName)) {
+      massRule = Hive.box(settingsBoxName).get('mass_bunk_rule') as String? ?? 'present';
+    } else {
+      // settings box not opened (e.g. in unit tests) — fall back to default
+      massRule = 'present';
+    }
+    final attended = records.fold<int>(0, (acc, r) {
+      if (r.status == AttendanceStatus.present || r.status == AttendanceStatus.extraClass) return acc + r.count;
+      if (r.status == AttendanceStatus.massBunk && massRule == 'present') return acc + r.count;
+      return acc;
+    });
     // compute total (held) respecting mass bunk rule
     int total = 0;
     for (final r in records) {
@@ -105,7 +113,13 @@ class AttendanceRepository extends StateNotifier<List<AttendanceRecord>> {
   Map<String, int> summaryForSubject(String subjectId) {
     final records = recordsForSubject(subjectId);
     // read mass bunk rule
-    String massRule = Hive.box(settingsBoxName).get('mass_bunk_rule') as String? ?? 'present';
+    String massRule;
+    if (Hive.isBoxOpen(settingsBoxName)) {
+      massRule = Hive.box(settingsBoxName).get('mass_bunk_rule') as String? ?? 'present';
+    } else {
+      // settings box not opened (e.g. in unit tests) — fall back to default
+      massRule = 'present';
+    }
     int held = 0;
     int attended = 0;
     int missed = 0;
