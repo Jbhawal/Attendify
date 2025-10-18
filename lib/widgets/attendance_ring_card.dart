@@ -1,14 +1,12 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// A reusable card that shows a donut (ring) chart for attendance and an
-/// insight message below. The widget supports two modes:
-/// - Normal Mode: no plannedTotal provided, percentage = attended/held
-/// - Planned Mode: plannedTotal provided, projected percentage = attended/plannedTotal
-///
-/// The card hides itself (returns SizedBox.shrink) when the calculated
-/// percentage is >= 85% as per Display Rules.
-class AttendanceRingCard extends StatelessWidget {
+import '../repositories/settings_repository.dart';
+
+/// AttendanceRingCard: displays attendance donut and an action message using
+/// the user-configured attendance threshold stored in SettingsRepository.
+class AttendanceRingCard extends ConsumerWidget {
   const AttendanceRingCard({
     super.key,
     required this.subjectId,
@@ -34,45 +32,46 @@ class AttendanceRingCard extends StatelessWidget {
   final VoidCallback? onLongPress;
   final Color? subjectColor;
 
-  double _computePercentage() {
-    if (plannedTotal != null && plannedTotal! > 0) {
-      return classesAttended / plannedTotal! * 100.0;
-    }
+  double _computePercentage(int? planned) {
+    if (planned != null && planned > 0) return classesAttended / planned * 100.0;
     if (classesHeld == 0) return 0.0;
     return classesAttended / classesHeld * 100.0;
   }
 
-  int _calculateCanMiss() {
-    if (classesHeld == 0) return 0;
-    final canMiss = ((classesAttended - 0.75 * classesHeld) / 0.75).floor();
-    return canMiss.clamp(-999, 999);
-  }
-
-  int _calculateNeedToAttend() {
-    if (classesHeld == 0) return 0;
-    final need = ((0.75 * classesHeld - classesAttended) / 0.25).ceil();
-    return need.clamp(0, 999);
-  }
-
   @override
-  Widget build(BuildContext context) {
-    final pct = _computePercentage();
-    // Display rule: only show if attendancePercent < 85
-    if (pct >= 85.0) return const SizedBox.shrink();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(SettingsRepository.provider);
+    final threshold = (settings.value?['attendance_threshold'] as int?) ?? 75;
+    final t = threshold / 100.0;
 
-  final inPlannedMode = plannedTotal != null && plannedTotal! > 0;
+    final pct = _computePercentage(plannedTotal);
+    // Display rule: only show card when percent < 85
+    if (pct >= 85) return const SizedBox.shrink();
 
-    final color = pct < 75
-        ? Colors.redAccent
-        : (pct < 85 ? Colors.orangeAccent : Colors.green);
+    final inPlannedMode = plannedTotal != null && plannedTotal! > 0;
+  final color = pct < (t * 100) ? Colors.redAccent : (pct < 85 ? Colors.orangeAccent : Colors.green);
 
-  final canMiss = _calculateCanMiss();
-  final needToAttend = _calculateNeedToAttend();
-  final missed = (classesHeld - classesAttended).clamp(0, 999);
-  final safeCanMiss = canMiss >= 0 ? canMiss : 0;
-  final safeNeed = needToAttend >= 0 ? needToAttend : 0;
+    int canMiss = 0;
+    int needToAttend = 0;
+    if (inPlannedMode) {
+      final needed = (t * plannedTotal!).ceil() - classesAttended;
+      needToAttend = needed > 0 ? needed : 0;
+      canMiss = (plannedTotal! - classesAttended - needToAttend) > 0 ? (plannedTotal! - classesAttended - needToAttend) : 0;
+    } else {
+      if (classesHeld == 0) {
+        needToAttend = 0;
+        canMiss = 0;
+      } else {
+        // fallback arithmetic for non-planned mode; keep it conservative
+        canMiss = ((classesAttended - (t * classesHeld)) / (t == 0 ? 1 : t)).floor();
+        needToAttend = (((t * classesHeld) - classesAttended) / (1 - t)).ceil();
+      }
+    }
 
-  final accent = subjectColor ?? color;
+    final missed = (classesHeld - classesAttended).clamp(0, 999);
+    final safeCanMiss = canMiss >= 0 ? canMiss : 0;
+    final safeNeed = needToAttend >= 0 ? needToAttend : 0;
+    final accent = subjectColor ?? color;
 
     return Material(
       color: Theme.of(context).colorScheme.surface,
@@ -84,129 +83,88 @@ class AttendanceRingCard extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // ribbon header (matches Subjects tab layout)
+            // Header ribbon
             Container(
               height: 36,
               decoration: BoxDecoration(
-                // withOpacity deprecated; use withAlpha for a close approximation
                 gradient: LinearGradient(colors: [accent, accent.withAlpha((0.9 * 255).toInt())]),
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              child: Row(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    child: Text(subjectCode?.toUpperCase() ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14)),
-                  ),
-                  const Spacer(),
-                ],
-              ),
+              child: Row(children: [
+                Padding(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), child: Text(subjectCode?.toUpperCase() ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14))),
+                const Spacer(),
+              ]),
             ),
+
+            // Body
             Padding(
               padding: const EdgeInsets.all(12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(subjectName, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                          ],
-                        ),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(child: Text(subjectName, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700))),
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'How this is calculated',
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        title: const Text('Attendance calculation'),
+                        content: Text(inPlannedMode
+                            ? 'Projected % = attended / planned total. Shown projection assumes remaining classes follow current attendance pattern.'
+                            : 'Percent = attended / classes held. Can Miss and Need to Attend are computed relative to $threshold% threshold.'),
+                        actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK'))],
                       ),
-                      IconButton(
-                        padding: EdgeInsets.zero,
-                        visualDensity: VisualDensity.compact,
-                        tooltip: 'How this is calculated',
-                        onPressed: () => showDialog<void>(
-                          context: context,
-                          builder: (_) => AlertDialog(
-                            title: const Text('Attendance calculation'),
-                            content: Text(inPlannedMode
-                                ? 'Projected % = attended / planned total. Shown projection assumes remaining classes follow current attendance pattern.'
-                                : 'Percent = attended / classes held. Can Miss and Need to Attend are computed relative to 75% threshold.'),
-                            actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK'))],
-                          ),
-                        ),
-                        icon: Icon(Icons.info_outline, size: 18, color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  // Donut with animated percent and numeric tween
-                  SizedBox(
-                    width: size,
-                    height: size,
-                    child: TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0.0, end: (pct.clamp(0.0, 100.0) / 100.0)),
-                      duration: const Duration(milliseconds: 800),
-                      curve: Curves.easeOutCubic,
-                      builder: (context, value, _) {
-                        final displayPct = (value * 100).round();
-                        return Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            CustomPaint(
-                              size: Size(size, size),
-                              painter: _DonutPainter(progress: value, color: accent, backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest, strokeWidth: size * 0.12),
-                            ),
-                            Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text('$displayPct%', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-                                const SizedBox(height: 4),
-                                Text('$classesAttended/$classesHeld', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[700], fontWeight: FontWeight.w600)),
-                              ],
-                            ),
-                          ],
-                        );
-                      },
                     ),
+                    icon: Icon(Icons.info_outline, size: 18, color: Colors.grey[600]),
                   ),
-                  const SizedBox(height: 12),
-                  Column(
-                    children: [
-                      Text(
-                        // Use the same action-oriented phrasing in both Normal and Planned modes
-                        'Attend $safeNeed more classes to secure 75%! You can safely miss $safeCanMiss more classes.',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                      ),
-                      if (pct < 75) const SizedBox(height: 8),
-                      if (pct < 75)
-                        Container(
-                          margin: const EdgeInsets.only(top: 4),
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(color: Colors.redAccent.withAlpha((0.12 * 255).toInt()), borderRadius: BorderRadius.circular(12)),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.warning_amber_rounded, size: 14, color: Colors.redAccent.shade700),
-                              const SizedBox(width: 6),
-                              Text('Action required', style: TextStyle(color: Colors.redAccent.shade700, fontWeight: FontWeight.w800, fontSize: 12)),
-                            ],
-                          ),
-                        ),
-                    ],
+                ]),
+
+                const SizedBox(height: 10),
+
+                // Donut
+                SizedBox(
+                  width: size,
+                  height: size,
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0.0, end: (pct.clamp(0.0, 100.0) / 100.0)),
+                    duration: const Duration(milliseconds: 800),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, value, _) {
+                      final displayPct = (value * 100).round();
+                      return Stack(alignment: Alignment.center, children: [
+                        CustomPaint(size: Size(size, size), painter: _DonutPainter(progress: value, color: accent, backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest, strokeWidth: size * 0.12)),
+                        Column(mainAxisSize: MainAxisSize.min, children: [
+                          Text('$displayPct%', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 4),
+                          Text('$classesAttended/$classesHeld', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[700], fontWeight: FontWeight.w600)),
+                        ]),
+                      ]);
+                    },
                   ),
-                  const SizedBox(height: 12),
-                  // Stat chips
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _chipStat('Held', classesHeld, Colors.indigo),
-                      _chipStat('Attended', classesAttended, Colors.green),
-                      _chipStat('Missed', missed, Colors.redAccent),
-                      if (plannedTotal != null) _chipStat('Planned', plannedTotal!, Colors.grey),
-                    ],
-                  ),
-                ],
-              ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // Action text
+                Column(children: [
+                  Text('Attend $safeNeed more classes to secure $threshold%! You can safely miss $safeCanMiss more classes.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                  if (pct < (t * 100)) const SizedBox(height: 8),
+                  if (pct < (t * 100))
+                    Container(
+                      margin: const EdgeInsets.only(top: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(color: Colors.redAccent.withAlpha((0.12 * 255).toInt()), borderRadius: BorderRadius.circular(12)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.warning_amber_rounded, size: 14, color: Colors.redAccent.shade700), const SizedBox(width: 6), Text('Action required', style: TextStyle(color: Colors.redAccent.shade700, fontWeight: FontWeight.w800, fontSize: 12))]),
+                    ),
+                ]),
+
+                const SizedBox(height: 12),
+
+                // Stats
+                Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [_chipStat('Held', classesHeld, Colors.indigo), _chipStat('Attended', classesAttended, Colors.green), _chipStat('Missed', missed, Colors.redAccent), if (plannedTotal != null) _chipStat('Planned', plannedTotal!, Colors.grey)]),
+              ]),
             ),
           ],
         ),
@@ -214,78 +172,8 @@ class AttendanceRingCard extends StatelessWidget {
     );
   }
 
-  // _statItem removed in favor of more compact _chipStat presentation.
-
   Widget _chipStat(String label, int value, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-  decoration: BoxDecoration(color: color.withAlpha((0.08 * 255).toInt()), borderRadius: BorderRadius.circular(12)),
-      child: Column(
-        children: [
-          Text('$value', style: TextStyle(color: color, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 2),
-          Text(label, style: TextStyle(color: Colors.grey[700], fontSize: 11)),
-        ],
-      ),
-    );
-  }
-}
-
-class _AnimatedDonut extends StatefulWidget {
-  const _AnimatedDonut({Key? key, required this.percentage, required this.color, required this.backgroundColor, required this.strokeWidth, required this.label}) : super(key: key);
-
-  final double percentage; // 0..1
-  final Color color;
-  final Color backgroundColor;
-  final double strokeWidth;
-  final String label;
-
-  @override
-  State<_AnimatedDonut> createState() => _AnimatedDonutState();
-}
-
-class _AnimatedDonutState extends State<_AnimatedDonut> with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
-  late final Animation<double> _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
-  double _target = 0.0;
-
-  @override
-  void initState() {
-    super.initState();
-    _target = widget.percentage;
-    _ctrl.value = 0.0;
-    _ctrl.forward();
-  }
-
-  @override
-  void didUpdateWidget(covariant _AnimatedDonut oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if ((oldWidget.percentage - widget.percentage).abs() > 0.001) {
-      _target = widget.percentage;
-      _ctrl.forward(from: 0.0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _anim,
-      builder: (context, child) {
-        final value = _anim.value * _target;
-        return CustomPaint(
-          painter: _DonutPainter(progress: value, color: widget.color, backgroundColor: widget.backgroundColor, strokeWidth: widget.strokeWidth),
-          child: Center(
-            child: Text(widget.label, style: const TextStyle(fontWeight: FontWeight.w700)),
-          ),
-        );
-      },
-    );
+    return Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), decoration: BoxDecoration(color: color.withAlpha((0.08 * 255).toInt()), borderRadius: BorderRadius.circular(12)), child: Column(children: [Text('$value', style: TextStyle(color: color, fontWeight: FontWeight.w800)), const SizedBox(height: 2), Text(label, style: TextStyle(color: Colors.grey[700], fontSize: 11))]));
   }
 }
 
@@ -327,3 +215,4 @@ class _DonutPainter extends CustomPainter {
     return old.progress != progress || old.color != color || old.backgroundColor != backgroundColor || old.strokeWidth != strokeWidth;
   }
 }
+

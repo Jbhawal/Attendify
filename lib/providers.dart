@@ -105,6 +105,9 @@ final atRiskSubjectsProvider = Provider<List<Subject>>((ref) {
 
   final settings = ref.watch(settingsProvider).value ?? <String, dynamic>{};
 
+  final threshold = (settings['attendance_threshold'] as int?) ?? 75;
+  final t = threshold / 100.0;
+
   return subjects.where((subject) {
     // Use the repository's summary which respects mass-bunk rule
     final summary = attendanceRepo.summaryForSubject(subject.id);
@@ -117,7 +120,7 @@ final atRiskSubjectsProvider = Provider<List<Subject>>((ref) {
     final planned = settings[plannedKey] as int?;
     if (planned != null && planned > held) {
       final remaining = planned - held;
-      final targetAttended = (0.75 * planned).ceil();
+      final targetAttended = (t * planned).ceil();
       final neededNow = (targetAttended - attended).clamp(0, planned);
       final canMiss = (remaining - neededNow).clamp(0, 999);
       return canMiss <= 2;
@@ -126,7 +129,7 @@ final atRiskSubjectsProvider = Provider<List<Subject>>((ref) {
     // Otherwise fall back to percentage-based rule
     final percentage = attendanceRepo.percentageForSubject(subject.id);
     if (percentage == null) return false;
-    return percentage < 75;
+    return percentage < (t * 100);
   }).toList();
 });
 

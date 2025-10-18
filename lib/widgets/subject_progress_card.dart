@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../constants/app_colors.dart';
 import '../models/subject.dart';
+import '../repositories/settings_repository.dart';
 
-class SubjectProgressCard extends StatelessWidget {
+class SubjectProgressCard extends ConsumerWidget {
   const SubjectProgressCard({
     super.key,
     required this.subject,
@@ -19,18 +21,20 @@ class SubjectProgressCard extends StatelessWidget {
   final int attended;
   final int missed;
 
-  Color _statusColor(double percentage) {
+  Color _statusColor(double percentage, int threshold) {
     if (percentage >= 85) {
       return AppColors.safeGreen;
     }
-    if (percentage >= 75) {
+    if (percentage >= threshold) {
       return AppColors.warningYellow;
     }
     return AppColors.dangerRed;
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+  final settings = ref.watch(SettingsRepository.provider);
+  final threshold = (settings.value?['attendance_threshold'] as int?) ?? 75;
     final color = Color(int.parse('0xff${subject.color.replaceAll('#', '')}'));
 
     return Container(
@@ -97,7 +101,7 @@ class SubjectProgressCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                 decoration: BoxDecoration(
-                  color: _statusColor(percentage).withValues(alpha: 0.15),
+                  color: _statusColor(percentage, threshold).withAlpha((0.15 * 255).toInt()),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: held == 0
@@ -105,7 +109,7 @@ class SubjectProgressCard extends StatelessWidget {
                     : Text(
                         '${percentage.toStringAsFixed(1)}%',
                         style: TextStyle(
-                          color: _statusColor(percentage),
+                          color: _statusColor(percentage, threshold),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -115,10 +119,10 @@ class SubjectProgressCard extends StatelessWidget {
           const SizedBox(height: 18),
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: LinearProgressIndicator(
+              child: LinearProgressIndicator(
               value: held == 0 ? 0.0 : (percentage / 100).clamp(0.0, 1.0),
               backgroundColor: Colors.grey[200],
-              valueColor: AlwaysStoppedAnimation<Color>(held == 0 ? Colors.grey : _statusColor(percentage)),
+              valueColor: AlwaysStoppedAnimation<Color>(held == 0 ? Colors.grey : _statusColor(percentage, threshold)),
               minHeight: 10,
             ),
           ),

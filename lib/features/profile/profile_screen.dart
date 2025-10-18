@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart' show rootBundle, Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -262,6 +263,53 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ),
                     ],
                   ),
+                ),
+
+                const SizedBox(height: 8),
+
+                // Attendance threshold setting (persisted)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.track_changes),
+                  title: const Text('Attendance target'),
+                  subtitle: Text(ref.watch(settingsProvider).when(
+                        data: (m) => '${(m['attendance_threshold'] as int?) ?? 75}%',
+                        loading: () => '${(ref.read(settingsProvider).value?['attendance_threshold'] as int?) ?? 75}%',
+                        error: (_, __) => '${(ref.read(settingsProvider).value?['attendance_threshold'] as int?) ?? 75}%',
+                      )),
+                  onTap: () async {
+                    // Read current threshold and allow user to pick a new value
+                    final settings = ref.read(settingsProvider).value ?? <String, dynamic>{};
+                    int current = (settings['attendance_threshold'] as int?) ?? 75;
+                    final picked = await showDialog<int?>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Set attendance target'),
+                        content: SizedBox(
+                          height: 180,
+                          width: double.maxFinite,
+                          child: StatefulBuilder(builder: (ctx2, setState) {
+                            return CupertinoPicker(
+                              itemExtent: 32,
+                              onSelectedItemChanged: (i) => setState(() => current = (50 + i).toInt()),
+                              scrollController: FixedExtentScrollController(initialItem: current - 50),
+                              children: List.generate(46, (i) => Center(child: Text('${50 + i}%'))),
+                            );
+                          }),
+                        ),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Cancel')),
+                          FilledButton(onPressed: () => Navigator.of(ctx).pop(current), child: const Text('Save')),
+                        ],
+                      ),
+                    );
+
+                    if (picked != null) {
+                      await ref.read(settingsProvider.notifier).setAttendanceThreshold(picked);
+                      if (!mounted) return;
+                      setState(() {});
+                    }
+                  },
                 ),
 
                 const SizedBox(height: 20),

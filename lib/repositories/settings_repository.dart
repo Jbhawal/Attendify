@@ -61,6 +61,17 @@ class SettingsRepository extends StateNotifier<AsyncValue<Map<String, dynamic>>>
     await _load();
   }
 
+  /// Store the user's desired attendance threshold (e.g., 75). If null, remove entry.
+  Future<void> setAttendanceThreshold(int? threshold) async {
+    const key = 'attendance_threshold';
+    if (threshold == null) {
+      await _box.delete(key);
+    } else {
+      await _box.put(key, threshold);
+    }
+    await _load();
+  }
+
   /// Store or remove planned total classes for a subject.
   /// If [total] is null, the entry is removed.
   Future<void> setSubjectPlannedClasses(String subjectId, int? total) async {
@@ -104,4 +115,5 @@ class SettingsRepository extends StateNotifier<AsyncValue<Map<String, dynamic>>>
   bool get remindersEnabled => (state.value?['reminders_enabled'] as bool?) ?? false;
   String get reminderTime => (state.value?['reminder_time'] as String?) ?? '20:00';
   String? get massBunkRule => state.value?['mass_bunk_rule'] as String?;
+  int get attendanceThreshold => (state.value?['attendance_threshold'] as int?) ?? 75;
 }

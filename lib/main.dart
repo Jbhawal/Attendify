@@ -160,11 +160,14 @@ Future<void> _seedSampleData() async {
       // Skip future dates
       if (classDate.isAfter(now)) continue;
 
-      // Random attendance status with some logic
+      // Random attendance status with some logic. Use the configured threshold
+      // from settings if present so seeded data aligns with user preference.
       AttendanceStatus status;
       final randomValue = (random + week * subject.id.hashCode) % 100;
+      final settingsBox = Hive.box(settingsBoxName);
+      final seedThreshold = (settingsBox.get('attendance_threshold') as int?) ?? 75;
 
-      if (randomValue < 75) {
+      if (randomValue < seedThreshold) {
         status = AttendanceStatus.present;
       } else if (randomValue < 85) {
         status = AttendanceStatus.absent;

@@ -18,8 +18,10 @@ class AnalyticsScreen extends ConsumerWidget {
     final settings = ref.watch(settingsProvider).value ?? <String, dynamic>{};
 
   final massRule = settings['mass_bunk_rule'] as String? ?? 'present';
+  final threshold = (settings['attendance_threshold'] as int?) ?? 75;
+  final t = threshold / 100.0;
   final overview = _calculateOverview(subjects, attendance, massRule);
-  final riskBuckets = _calculateRiskBuckets(subjects, attendanceRepo, settings);
+  final riskBuckets = _calculateRiskBuckets(subjects, attendanceRepo, settings, t: t);
     final consistency = _calculateConsistency(attendance);
 
     return Scaffold(
@@ -31,7 +33,7 @@ class AnalyticsScreen extends ConsumerWidget {
           children: [
             _OverviewCard(overview: overview),
             const SizedBox(height: 20),
-            _RiskDistributionCard(buckets: riskBuckets),
+            _RiskDistributionCard(buckets: riskBuckets, t: t),
             const SizedBox(height: 20),
             _ConsistencyCard(consistency: consistency),
             const SizedBox(height: 20),
@@ -50,8 +52,9 @@ class AnalyticsScreen extends ConsumerWidget {
                     percentage: percent ?? 0.0,
                     summary: summary,
                     plannedTotal: planned,
-                    canMiss: _calculateCanMiss(summary['held'] ?? 0, summary['attended'] ?? 0, planned: planned),
-                    needToAttend: _calculateNeedToAttend(summary['held'] ?? 0, summary['attended'] ?? 0, planned: planned),
+                    canMiss: _calculateCanMiss(summary['held'] ?? 0, summary['attended'] ?? 0, planned: planned, t: t),
+                    needToAttend: _calculateNeedToAttend(summary['held'] ?? 0, summary['attended'] ?? 0, planned: planned, t: t),
+                    t: t,
                   );
                 }),
               // removed unnecessary .toList() in spread
@@ -132,37 +135,38 @@ class AnalyticsScreen extends ConsumerWidget {
 
 
 
-  int _calculateCanMiss(int held, int attended, {int? planned}) {
+  int _calculateCanMiss(int held, int attended, {int? planned, required double t}) {
     // If planned total is provided, compute how many of the remaining classes can be missed
     if (planned != null && planned > held) {
       final remaining = planned - held;
-      // target attended to maintain 75% at the end of planned classes
-      final targetAttended = (0.75 * planned).ceil();
+      // target attended to maintain user threshold at the end of planned classes
+  final targetAttended = (t * planned).ceil();
       final neededNow = (targetAttended - attended).clamp(0, planned);
       // how many of remaining classes can be missed = remaining - neededNow
       return (remaining - neededNow).clamp(0, 999);
     }
-    // fallback: simple immediate can-miss calculation (how many upcoming classes can be missed without dropping below 75%)
+  // fallback: simple immediate can-miss calculation (how many upcoming classes can be missed without dropping below the configured threshold)
     if (held == 0) return 0;
-    final limit = attended / 0.75;
-    return (limit - held).floor().clamp(0, 999);
+  final limit = attended / t;
+  return (limit - held).floor().clamp(0, 999);
   }
 
-  int _calculateNeedToAttend(int held, int attended, {int? planned}) {
+  int _calculateNeedToAttend(int held, int attended, {int? planned, required double t}) {
     // If planned total provided, compute how many more classes must be attended in the remaining planned classes
     if (planned != null && planned > held) {
       final remaining = planned - held;
-      final targetAttended = (0.75 * planned).ceil();
+  final targetAttended = (t * planned).ceil();
       final need = (targetAttended - attended).clamp(0, remaining);
       return need;
     }
     if (held == 0) return 0;
-    if (attended / held >= 0.75) return 0;
-    final deficit = (0.75 * held) - attended;
-    return (deficit / 0.25).ceil().clamp(0, 999);
+    if (attended / held >= t) return 0;    
+    final deficit = (t * held) - attended;    
+    // conservative step: assume missing one class reduces percent by ~1/(held) share — fallback divisor kept as 0.25 for small classes
+    return (deficit / 0.25).ceil().clamp(0, 999);    
   }
 
-  Map<String, int> _calculateRiskBuckets(List<Subject> subjects, dynamic attendanceRepo, Map<String, dynamic> settings) {
+  Map<String, int> _calculateRiskBuckets(List<Subject> subjects, dynamic attendanceRepo, Map<String, dynamic> settings, {required double t}) {
     var safe = 0;
     var warning = 0;
     var risky = 0;
@@ -175,7 +179,7 @@ class AnalyticsScreen extends ConsumerWidget {
       final attended = summary['attended'] ?? 0;
 
       if (planned != null && planned > 0) {
-        final canMiss = _calculateCanMiss(held, attended, planned: planned);
+        final canMiss = _calculateCanMiss(held, attended, planned: planned, t: t);
         // If no more classes can be missed under the planned total, mark as risky
         if (canMiss <= 0) {
           risky += 1;
@@ -191,9 +195,11 @@ class AnalyticsScreen extends ConsumerWidget {
 
       final pct = attendanceRepo.percentageForSubject(subject.id);
       if (pct == null) continue; // no record -> skip
-      if (pct >= 85) {
+      final high = ((t * 100) + 10).toInt();
+      final low = (t * 100).toInt();
+      if (pct >= high) {
         safe += 1;
-      } else if (pct >= 75) {
+      } else if (pct >= low) {
         warning += 1;
       } else {
         risky += 1;
@@ -320,8 +326,9 @@ class _OverviewCard extends StatelessWidget {
 // _ProjectionCard removed because it was unused. Kept analytics UI minimal.
 
 class _RiskDistributionCard extends StatelessWidget {
-  const _RiskDistributionCard({required this.buckets});
+  const _RiskDistributionCard({required this.buckets, required this.t});
   final Map<String, int> buckets;
+  final double t;
 
   @override
   Widget build(BuildContext context) {
@@ -337,9 +344,9 @@ class _RiskDistributionCard extends StatelessWidget {
         if (total == 0) const Text('Add subjects and start marking attendance to see risk categories.', style: TextStyle(fontSize: 13)) else ...[
           _riskRow(label: 'Healthy (≥85%)', value: buckets['safe'] ?? 0, color: Colors.green, total: total),
           const SizedBox(height: 10),
-          _riskRow(label: 'Watchlist (75-84%)', value: buckets['warning'] ?? 0, color: Colors.orangeAccent, total: total),
+          _riskRow(label: 'Watchlist (${(t * 100).toInt()}-${((t * 100) + 9).toInt()}%)', value: buckets['warning'] ?? 0, color: Colors.orangeAccent, total: total),
           const SizedBox(height: 10),
-          _riskRow(label: 'Critical (<75%)', value: buckets['risky'] ?? 0, color: Colors.redAccent, total: total),
+          _riskRow(label: 'Critical (<${(t * 100).toInt()}%)', value: buckets['risky'] ?? 0, color: Colors.redAccent, total: total),
         ]
       ]),
     );
@@ -404,7 +411,7 @@ class _ConsistencyCard extends StatelessWidget {
 }
 
 class _SubjectAnalyticsCard extends StatelessWidget {
-  const _SubjectAnalyticsCard({required this.subject, required this.percentage, required this.summary, required this.canMiss, required this.needToAttend, this.plannedTotal});
+  const _SubjectAnalyticsCard({required this.subject, required this.percentage, required this.summary, required this.canMiss, required this.needToAttend, this.plannedTotal, required this.t});
 
   final Subject subject;
   final double percentage;
@@ -412,12 +419,13 @@ class _SubjectAnalyticsCard extends StatelessWidget {
   final int canMiss;
   final int needToAttend;
   final int? plannedTotal;
+  final double t;
 
   @override
   Widget build(BuildContext context) {
   final color = Color(int.parse('0xff${subject.color.replaceAll('#', '')}'));
   final held = summary['held'] ?? 0;
-  final statusColor = held == 0 ? Colors.grey : (percentage >= 85 ? Colors.green : percentage >= 75 ? Colors.orange : Colors.redAccent);
+  final statusColor = held == 0 ? Colors.grey : (percentage >= 85 ? Colors.green : percentage >= (t * 100) ? Colors.orange : Colors.redAccent);
     return ClipRRect(
       borderRadius: BorderRadius.circular(18),
       child: Container(
@@ -479,9 +487,9 @@ class _SubjectAnalyticsCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(children: [
-                Expanded(child: _highlightCard(title: 'Can Miss', value: canMiss, description: 'classes at 75%', color: Colors.orangeAccent)),
+                Expanded(child: _highlightCard(title: 'Can Miss', value: canMiss, description: 'classes at ${(t * 100).toInt()}%', color: Colors.orangeAccent)),
                 const SizedBox(width: 12),
-                Expanded(child: _highlightCard(title: 'Need to Attend', value: needToAttend, description: 'more to reach 75%', color: Colors.green)),
+                Expanded(child: _highlightCard(title: 'Need to Attend', value: needToAttend, description: 'more to reach ${(t * 100).toInt()}%', color: Colors.green)),
               ]),
             ),
             const SizedBox(height: 12),

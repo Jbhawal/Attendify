@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:math';
@@ -56,6 +57,50 @@ class _OnboardingPageState extends ConsumerState<_OnboardingPage> {
     if (!mounted) return;
     if (selectedRule != null) {
       await ref.read(settingsProvider.notifier).setMassBunkRule(selectedRule);
+    }
+
+    // After mass-bunk rule, ask for the desired attendance threshold using a wheel picker
+    if (!mounted) return;
+    int selectedThreshold = ref.read(settingsProvider).when(
+          data: (m) => (m['attendance_threshold'] as int?) ?? 75,
+          loading: () => 75,
+          error: (_, __) => 75,
+        );
+
+    final picked = await showDialog<int?>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Set attendance threshold'),
+        content: SizedBox(
+          height: 160,
+          width: double.maxFinite,
+          child: Column(
+            children: [
+              // show current selection as example instead of hardcoded 75
+              Text('Choose the % target you must maintain (e.g., $selectedThreshold%)'),
+              const SizedBox(height: 12),
+              Expanded(
+                child: StatefulBuilder(builder: (context, setState) {
+                  return CupertinoPicker(
+                    itemExtent: 32,
+                    onSelectedItemChanged: (int i) => setState(() => selectedThreshold = 50 + i),
+                    scrollController: FixedExtentScrollController(initialItem: selectedThreshold - 50),
+                    children: List.generate(46, (i) => Center(child: Text('${50 + i}%'))),
+                  );
+                }),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Skip')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(selectedThreshold), child: const Text('Save')),
+        ],
+      ),
+    );
+
+    if (picked != null) {
+      await ref.read(settingsProvider.notifier).setAttendanceThreshold(picked);
     }
 
     if (!mounted) return;

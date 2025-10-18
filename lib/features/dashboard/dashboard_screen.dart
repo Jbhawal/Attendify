@@ -24,7 +24,10 @@ class DashboardScreen extends ConsumerWidget {
   final attendanceRepo = ref.read(attendanceProvider.notifier);
     final todaysClasses = ref.watch(todaysClassesProvider);
 
-    return Scaffold(
+  final settingsMap = ref.watch(settingsProvider).value ?? <String, dynamic>{};
+  final threshold = (settingsMap['attendance_threshold'] as int?) ?? 75;
+
+  return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: ListView(
@@ -36,6 +39,7 @@ class DashboardScreen extends ConsumerWidget {
               overallAttendance: overallAttendance,
               overallHeld: overallHeld,
               atRiskCount: atRiskSubjects.length,
+              threshold: threshold,
             ),
             const SizedBox(height: 20),
 
@@ -173,6 +177,7 @@ class _HeaderCard extends StatelessWidget {
     required this.overallAttendance,
     required this.overallHeld,
     required this.atRiskCount,
+    required this.threshold,
   });
 
   final String greeting;
@@ -180,14 +185,15 @@ class _HeaderCard extends StatelessWidget {
   final double overallAttendance;
   final int overallHeld;
   final int atRiskCount;
+  final int threshold;
 
   @override
   Widget build(BuildContext context) {
-    final overallColor = overallAttendance >= 85
-        ? AppColors.safeGreen
-        : overallAttendance >= 75
-            ? AppColors.warningYellow
-            : AppColors.dangerRed;
+  final overallColor = overallAttendance >= 85
+    ? AppColors.safeGreen
+    : overallAttendance >= threshold
+      ? AppColors.warningYellow
+      : AppColors.dangerRed;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 36, 20, 0),
       child: Container(
@@ -244,7 +250,7 @@ class _HeaderCard extends StatelessWidget {
             if (atRiskCount > 0) ...[
               const SizedBox(height: 12),
               Text(
-                '$atRiskCount subject${atRiskCount == 1 ? '' : 's'} need attention today.',
+                '$atRiskCount subject${atRiskCount == 1 ? '' : 's'} need attention.',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 15,
