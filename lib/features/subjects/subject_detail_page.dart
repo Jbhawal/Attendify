@@ -170,20 +170,70 @@ class _SubjectDetailPageState extends State<SubjectDetailPage> {
                       outsideDaysVisible: false,
                     ),
                     calendarBuilders: CalendarBuilders(
-                      markerBuilder: (context, day, eventsForDay) {
-                        if (eventsForDay.isEmpty) return const SizedBox.shrink();
-                        final markers = eventsForDay.cast<AttendanceRecord>();
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 6),
-                          child: Wrap(
-                            spacing: 4,
-                            children: markers
-                                .map((record) => Container(
-                                      height: 6,
-                                      width: 6,
-                                      decoration: BoxDecoration(color: _statusColor(record.status), shape: BoxShape.circle),
-                                    ))
-                                .toList(),
+                      // Default builder for normal days: if the day has events, draw a circular
+                      // highlighted background behind the day number using the first record's status color.
+                      defaultBuilder: (context, day, focusedDay) {
+                        final key = _normalizeDate(day);
+                        final dayRecords = events[key] ?? const <AttendanceRecord>[];
+                        final hasEvents = dayRecords.isNotEmpty;
+                        final firstColor = hasEvents ? _statusColor(dayRecords.first.status) : null;
+
+                        if (!hasEvents) {
+                          return Center(child: Text('${day.day}'));
+                        }
+
+                        // Fixed-size circle behind the day number so all highlighted
+                        // dates render at the same size irrespective of 1- or 2-digit days.
+                        return Center(
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: firstColor?.withValues(alpha: 0.18),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text('${day.day}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                          ),
+                        );
+                      },
+
+                      // Selected day should keep the selected decoration while still showing
+                      // the day number on the circle (override to keep consistent look).
+                      selectedBuilder: (context, day, focusedDay) {
+                        // Keep the selected appearance while rendering the day number.
+                        return Center(
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            alignment: Alignment.center,
+                            decoration: const BoxDecoration(
+                              color: AppColors.gradientStart,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text('${day.day}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                          ),
+                        );
+                      },
+
+                      // Today styling: combine the today decoration with potential event hint.
+                      todayBuilder: (context, day, focusedDay) {
+                        final key = _normalizeDate(day);
+                        final dayRecords = events[key] ?? const <AttendanceRecord>[];
+                        final hasEvents = dayRecords.isNotEmpty;
+                        final firstColor = hasEvents ? _statusColor(dayRecords.first.status) : null;
+
+                        return Center(
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: AppColors.gradientEnd.withValues(alpha: 0.15),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: firstColor ?? Colors.transparent, width: hasEvents ? 1.6 : 0),
+                            ),
+                            child: Text('${day.day}', style: const TextStyle(fontWeight: FontWeight.w600)),
                           ),
                         );
                       },

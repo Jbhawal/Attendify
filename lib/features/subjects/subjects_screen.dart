@@ -1,13 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../models/attendance_record.dart';
 import '../../models/subject.dart';
 import '../../providers.dart';
-import 'subject_detail_page.dart';
-import '../attendance/add_past_attendance_sheet.dart';
 import '../../constants/app_colors.dart';
-import '../../widgets/attendify_text_field.dart';
 import '../../widgets/responsive_page.dart';
 
 class SubjectsScreen extends ConsumerWidget {
@@ -16,278 +12,57 @@ class SubjectsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final subjects = ref.watch(subjectsProvider);
-    final attendance = ref.watch(attendanceProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Subjects'),
+      appBar: AppBar(title: const Text('Subjects')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showSubjectSheet(context, ref),
+        label: const Text('Add Subject'),
+        icon: const Icon(Icons.add_rounded),
       ),
-      floatingActionButton: subjects.isEmpty
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: () => _showSubjectSheet(context, ref),
-              label: const Text('Add Subject'),
-              icon: const Icon(Icons.add_rounded),
-            ),
       body: ResponsivePage(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: subjects.isEmpty
-              ? _emptyState(context, ref)
-              : Column(
-                  children: [
-                  // Summary row: subject count + average attendance
-                  Builder(builder: (context) {
-                    // Respect the global mass-bunk rule when computing averages (same logic as per-subject cards)
-                    final settingsAsync = ref.watch(settingsProvider);
-                    String massRule = 'present';
-                    settingsAsync.maybeWhen(data: (m) => massRule = m['mass_bunk_rule'] as String? ?? 'present', orElse: () {});
-
-                    double totalPercent = 0;
-                    int countWithData = 0;
-                    for (final s in subjects) {
-                      final records = attendance.where((r) => r.subjectId == s.id && r.status != AttendanceStatus.noClass).toList();
-                      int held = 0, attended = 0;
-                      for (final r in records) {
-                        if (r.status == AttendanceStatus.massBunk) {
-                          if (massRule == 'cancelled') continue;
-                          if (massRule == 'present') {
-                            held += 1;
-                            attended += 1;
-                          } else {
-                            held += 1; // treated as absent
-                          }
-                        } else {
-                          held += 1;
-                          if (r.status == AttendanceStatus.present || r.status == AttendanceStatus.extraClass) attended += 1;
-                        }
-                      }
-                      if (held > 0) {
-                        totalPercent += (attended / held) * 100;
-                        countWithData += 1;
-                      }
-                    }
-                    final avg = countWithData == 0 ? 0.0 : (totalPercent / countWithData);
-                    return Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('${subjects.length} subjects', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700, fontSize: 18)),
-                              const SizedBox(height: 4),
-                              Text(countWithData == 0 ? 'No attendance data yet' : '$countWithData subjects with records', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600])),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(colors: [AppColors.gradientStart, AppColors.gradientEnd]),
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 6))],
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.show_chart, size: 16, color: Colors.white),
-                              const SizedBox(width: 8),
-                              Text(countWithData == 0 ? 'No data' : '${avg.toStringAsFixed(1)}% avg', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                            ],
-                          ),
-                        ),
-                      ],
-                    );
-                  }),
-                  const SizedBox(height: 12),
-                  const SizedBox(height: 6),
-                  // Subject list
-                  Expanded(
-                    child: ListView.separated(
-                      itemCount: subjects.length,
-                      padding: const EdgeInsets.only(bottom: 120),
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (context, index) {
-                        final subject = subjects[index];
-                        final records = attendance.where((record) => record.subjectId == subject.id).toList()..sort((a, b) => b.date.compareTo(a.date));
-                        return _SubjectCard(
-                          subject: subject,
-                          records: records,
-                          onEdit: () => _showSubjectSheet(context, ref, subject: subject),
-                          onDelete: () async {
-                            final confirmed = await showDialog<bool>(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('Delete subject?'),
-                                content: Text('Are you sure you want to delete ${subject.name}? All related schedules and attendance will remain until removed manually.'),
-                                actions: [
-                                  TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-                                  FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Delete')),
-                                ],
-                              ),
-                            );
-                            if (confirmed ?? false) await ref.read(subjectsProvider.notifier).deleteSubject(subject.id);
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ],
-                  ),
-        ),
-      ),
-    );
-  }
-
-  Widget _emptyState(BuildContext context, WidgetRef ref) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.menu_book_outlined, size: 80, color: Colors.grey),
-          const SizedBox(height: 20),
-          const Text(
-            'No subjects added yet',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.black87),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Start by adding your first subject to track attendance',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: SizedBox(
-              height: 52,
-              child: ElevatedButton.icon(
-                onPressed: () => _showSubjectSheet(context, ref),
-                icon: const Icon(Icons.add_rounded, size: 20),
-                label: const Text('Add your first subject', style: TextStyle(fontWeight: FontWeight.w600)),
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 20), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+        // Let the list span the full width of the screen
+        padding: EdgeInsets.zero,
+        child: subjects.isEmpty
+            ? Center(child: Text('No subjects yet', style: Theme.of(context).textTheme.bodyLarge))
+            : ListView.separated(
+                padding: const EdgeInsets.only(bottom: 120, top: 12),
+                itemCount: subjects.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, index) => _SubjectCard(subject: subjects[index]),
               ),
-            ),
-          ),
-        ],
       ),
     );
   }
 
-  Future<void> _showSubjectSheet(
-    BuildContext context,
-    WidgetRef ref, {
-    Subject? subject,
-  }) async {
+  Future<void> _showSubjectSheet(BuildContext context, WidgetRef ref, {Subject? subject}) async {
     final nameController = TextEditingController(text: subject?.name ?? '');
-    final codeController = TextEditingController(text: subject?.code ?? '');
-    final professorController = TextEditingController(text: subject?.professor ?? '');
-    final plannedController = TextEditingController(text: subject == null ? '' : (ref.read(settingsProvider).value?['subject_total_${subject.id}']?.toString() ?? ''));
-    final creditsController = TextEditingController(text: subject != null ? subject.credits.toString() : '3');
-    String selectedColor = subject?.color ?? '#00897B';
-    bool nameError = false;
-    // Listen and clear error when user types
-    nameController.addListener(() {
-      if (nameError && nameController.text.isNotEmpty) {
-        nameError = false; // will be updated in the sheet's setState
-      }
-    });
-
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
       builder: (context) {
-        final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return ResponsivePage(
-                  padding: EdgeInsets.fromLTRB(20, 24, 20, bottomInset + 24),
-                  child: SingleChildScrollView(
-                    child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(subject == null ? 'Add New Subject' : 'Edit Subject', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
-                        IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.close)),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    AttendifyTextField(controller: nameController, label: 'Subject Name', isRequired: true, showError: nameError, errorText: 'Name is required'),
-                    const SizedBox(height: 12),
-                    AttendifyTextField(controller: codeController, label: 'Subject Code', textCapitalization: TextCapitalization.characters),
-                    const SizedBox(height: 12),
-                    AttendifyTextField(controller: professorController, label: 'Professor'),
-                    const SizedBox(height: 12),
-                    AttendifyTextField(controller: creditsController, label: 'Credits', keyboardType: TextInputType.number),
-                    const SizedBox(height: 16),
-                    AttendifyTextField(controller: plannedController, label: 'Planned total classes (optional)', keyboardType: TextInputType.number),
-                    const SizedBox(height: 12),
-                    const Text('Theme color', style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: [
-                        ...AppColors.subjectPalette.map((color) {
-                          final hex = '#${color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}';
-                          final isSelected = selectedColor.toLowerCase() == hex.toLowerCase();
-                          return GestureDetector(
-                            onTap: () => setState(() => selectedColor = hex),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 180),
-                              width: isSelected ? 46 : 40,
-                              height: isSelected ? 46 : 40,
-                              decoration: BoxDecoration(
-                                color: color,
-                                borderRadius: BorderRadius.circular(8),
-                                border: isSelected ? Border.all(color: Colors.black87, width: 2) : null,
-                                boxShadow: [BoxShadow(color: color.withValues(alpha: 0.18), blurRadius: 8, offset: const Offset(0, 4))],
-                              ),
-                            ),
-                          );
-                        }),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    SizedBox(width: double.infinity, height: 48, child: OutlinedButton(onPressed: () => Navigator.of(context).pop(), style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), child: const Text('Cancel', style: TextStyle(color: Colors.black87)))),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          if (nameController.text.isEmpty) {
-                            setState(() => nameError = true);
-                            return;
-                          }
-                          var credits = int.tryParse(creditsController.text) ?? 3;
-                          credits = credits.clamp(1, 10);
-                          if (subject == null) {
-                            final newId = await ref.read(subjectsProvider.notifier).addSubject(name: nameController.text, code: codeController.text, professor: professorController.text, credits: credits, color: selectedColor);
-                            final planned = int.tryParse(plannedController.text);
-                            await ref.read(settingsProvider.notifier).setSubjectPlannedClasses(newId, planned);
-                          } else {
-                            await ref.read(subjectsProvider.notifier).updateSubject(subject.copyWith(name: nameController.text, code: codeController.text, professor: professorController.text, credits: credits, color: selectedColor));
-                            final planned = int.tryParse(plannedController.text);
-                            await ref.read(settingsProvider.notifier).setSubjectPlannedClasses(subject.id, planned);
-                          }
-                          if (context.mounted) Navigator.of(context).pop();
-                        },
-                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                        child: Text(subject == null ? 'Add Subject' : 'Update Subject', style: const TextStyle(fontWeight: FontWeight.w600)),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
+        final bottom = MediaQuery.of(context).viewInsets.bottom;
+        return ResponsivePage(
+          padding: EdgeInsets.fromLTRB(20, 24, 20, bottom + 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Name')),
+              const SizedBox(height: 12),
+              Row(children: [Expanded(child: FilledButton(onPressed: () async {
+                final name = nameController.text.trim();
+                if (name.isEmpty) return;
+                if (subject == null) {
+                  await ref.read(subjectsProvider.notifier).addSubject(name: name, code: '', professor: '', credits: 3, color: '#00897B');
+                } else {
+                  await ref.read(subjectsProvider.notifier).updateSubject(subject.copyWith(name: name));
+                }
+                if (context.mounted) Navigator.of(context).pop();
+              }, child: const Text('Save')))]),
+              const SizedBox(height: 12),
+            ],
+          ),
         );
       },
     );
@@ -295,12 +70,8 @@ class SubjectsScreen extends ConsumerWidget {
 }
 
 class _SubjectCard extends ConsumerStatefulWidget {
-  const _SubjectCard({required this.subject, required this.records, required this.onEdit, required this.onDelete});
-
+  const _SubjectCard({Key? key, required this.subject}) : super(key: key);
   final Subject subject;
-  final List<AttendanceRecord> records;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
 
   @override
   ConsumerState<_SubjectCard> createState() => _SubjectCardState();
@@ -309,170 +80,134 @@ class _SubjectCard extends ConsumerStatefulWidget {
 class _SubjectCardState extends ConsumerState<_SubjectCard> {
   bool _expanded = false;
 
+  void _toggle() => setState(() => _expanded = !_expanded);
+
   @override
   Widget build(BuildContext context) {
-    final subject = widget.subject;
-    final records = widget.records;
-    final onEdit = widget.onEdit;
-    final onDelete = widget.onDelete;
-    final color = Color(int.parse('0xff${subject.color.replaceAll('#', '')}'));
-    final settingsAsync = ref.watch(settingsProvider);
-    String massRule = 'present';
-    settingsAsync.maybeWhen(data: (m) => massRule = m['mass_bunk_rule'] as String? ?? 'present', orElse: () {});
-
-    int held = 0;
-    int attended = 0;
-    for (final r in records) {
-      if (r.status == AttendanceStatus.noClass) continue;
-      if (r.status == AttendanceStatus.massBunk) {
-        if (massRule == 'cancelled') continue;
-        if (massRule == 'present') {
-          held += 1;
-          attended += 1;
-        } else {
-          held += 1;
-        }
-      } else {
-        held += 1;
-        if (r.status == AttendanceStatus.present || r.status == AttendanceStatus.extraClass) attended += 1;
-      }
-    }
-
-    final percentage = held == 0 ? 100 : (attended / held) * 100;
-    final percentageLabel = held == 0 ? 'No record' : '${percentage.toStringAsFixed(1)}%';
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        onTap: () => setState(() => _expanded = !_expanded),
-        child: Container(
-          decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 14, offset: const Offset(0, 8))]),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Ribbon header
-              Container(
-                height: 36,
-                decoration: BoxDecoration(gradient: LinearGradient(colors: [color, color.withValues(alpha: 0.9)])),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                child: Row(
-                  children: [
-                    Padding(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), child: Text(subject.code.toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14))),
-                    const Spacer(),
-                    Padding(padding: const EdgeInsets.only(right: 6), child: Icon(_expanded ? Icons.expand_less : Icons.expand_more, color: Colors.white, size: 18)),
-                  ],
-                ),
+    final s = widget.subject;
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      child: Column(
+        children: [
+          ListTile(
+            onTap: _toggle,
+            leading: CircleAvatar(
+              backgroundColor: AppColors.primary,
+              child: Text(s.name.isNotEmpty ? s.name[0].toUpperCase() : '?'),
+            ),
+            title: Text(s.name, style: Theme.of(context).textTheme.titleMedium),
+            subtitle: s.code.isNotEmpty ? Text(s.code) : null,
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+              // Add past attendance moved into header
+              IconButton(
+                icon: const Icon(Icons.add, size: 20),
+                onPressed: () => _showAddPastAttendance(context, ref, s),
+                tooltip: 'Add past attendance',
               ),
-
-              // Main content
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(subject.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.black87)),
-                          const SizedBox(height: 6),
-                          Row(children: [
-                            Expanded(child: Text(subject.professor.trim().isNotEmpty ? subject.professor : 'No teacher info', style: TextStyle(color: Colors.grey[700], fontSize: 14))),
-                          ]),
-                          const SizedBox(height: 4),
-                          Text('${subject.credits} credits', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-                          const SizedBox(height: 6),
-                              Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(16)),
-                                child: Text(percentageLabel, style: const TextStyle(fontWeight: FontWeight.w700)),
-                              ),
-                              const Spacer(),
-                              // Add past attendance button (small plus) placed next to edit/delete
-                              IconButton(
-                                onPressed: () => showAddPastAttendanceSheet(context: context, ref: ref, subject: subject),
-                                tooltip: 'Add past attendance',
-                                icon: const Icon(Icons.add_rounded, size: 18),
-                              ),
-                              const SizedBox(width: 4),
-                              IconButton(onPressed: onEdit, tooltip: 'Edit', icon: const Icon(Icons.edit_rounded, size: 18)),
-                              const SizedBox(width: 4),
-                              IconButton(onPressed: onDelete, tooltip: 'Delete', icon: const Icon(Icons.delete_outline_rounded, size: 18)),
-                            ],
-                          ),
-                        ],
-                      ),
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, size: 20),
+                onPressed: () => _showSubjectSheet(context, ref, subject: s),
+                tooltip: 'Edit',
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline, size: 20),
+                onPressed: () async {
+                  final ok = await showDialog<bool>(
+                    context: context,
+                    builder: (c) => AlertDialog(
+                      title: const Text('Delete?'),
+                      content: Text('Delete ${s.name}?'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.of(c).pop(false), child: const Text('No')),
+                        FilledButton(onPressed: () => Navigator.of(c).pop(true), child: const Text('Yes')),
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                  if (ok ?? false) await ref.read(subjectsProvider.notifier).deleteSubject(s.id);
+                },
+                tooltip: 'Delete',
               ),
-
-              // Expanded area
-              AnimatedCrossFade(
-                firstChild: const SizedBox.shrink(),
-                secondChild: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                  child: Column(
-                    children: [
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(12)),
-                        child: Row(
-                          children: [
-                            _infoChip('Attended', attended, Colors.green),
-                            const SizedBox(width: 12),
-                            _infoChip('Held', held, Colors.indigo),
-                            const SizedBox(width: 12),
-                            _infoChip('Extra', records.where((record) => record.status == AttendanceStatus.extraClass).length, Colors.deepPurple),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton.icon(
-                              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SubjectDetailPage(subject: subject, records: records))),
-                              icon: const Icon(Icons.calendar_month_rounded),
-                              label: const Text('See full class history'),
-                            ),
-                          ),
-                          // 'Add past attendance' moved to header as a compact icon button
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                crossFadeState: _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-                duration: const Duration(milliseconds: 220),
-              ),
-            ],
+            ]),
           ),
-        ),
+          AnimatedCrossFade(
+            firstChild: const SizedBox.shrink(),
+            secondChild: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (s.professor.isNotEmpty) Text('Professor: ${s.professor}'),
+                  const SizedBox(height: 6),
+                  Text('Credits: ${s.credits}'),
+                  const SizedBox(height: 6),
+                  // Placeholder area for attendance summary; keep UI light and avoid heavy computations here
+                  Text('More details and quick actions available when expanded.'),
+                ],
+              ),
+            ),
+            crossFadeState: _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 240),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _infoChip(String label, int value, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-  decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(16)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('$value', style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 4),
-            Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-          ],
-        ),
-      ),
+  Future<void> _showAddPastAttendance(BuildContext context, WidgetRef ref, Subject subject) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        final dateController = TextEditingController(text: DateTime.now().toIso8601String());
+        return Padding(
+          padding: EdgeInsets.fromLTRB(20, 24, 20, MediaQuery.of(context).viewInsets.bottom + 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Add past attendance for ${subject.name}', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 12),
+              TextField(controller: dateController, decoration: const InputDecoration(labelText: 'Date (ISO)'), keyboardType: TextInputType.datetime),
+              const SizedBox(height: 12),
+              Row(children: [Expanded(child: FilledButton(onPressed: () async {
+                // Placeholder: real implementation should create an AttendanceRecord
+                Navigator.of(context).pop();
+              }, child: const Text('Save')))]),
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showSubjectSheet(BuildContext context, WidgetRef ref, {Subject? subject}) async {
+    // delegate to parent helper on SubjectsScreen
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        final nameController = TextEditingController(text: subject?.name ?? '');
+        final bottom = MediaQuery.of(context).viewInsets.bottom;
+        return ResponsivePage(
+          padding: EdgeInsets.fromLTRB(20, 24, 20, bottom + 24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Name')),
+            const SizedBox(height: 12),
+            Row(children: [Expanded(child: FilledButton(onPressed: () async {
+              final name = nameController.text.trim();
+              if (name.isEmpty) return;
+              if (subject == null) {
+                await ref.read(subjectsProvider.notifier).addSubject(name: name, code: '', professor: '', credits: 3, color: '#00897B');
+              } else {
+                await ref.read(subjectsProvider.notifier).updateSubject(subject.copyWith(name: name));
+              }
+              if (context.mounted) Navigator.of(context).pop();
+            }, child: const Text('Save')))]),
+            const SizedBox(height: 12),
+          ]),
+        );
+      },
     );
   }
 }
-
-// Uses shared AttendifyTextField in lib/widgets/attendify_text_field.dart
