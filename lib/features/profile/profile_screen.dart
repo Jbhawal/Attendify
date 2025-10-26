@@ -319,14 +319,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 const SizedBox(),
 
                 // Reminder toggle
-                SwitchListTile(
-                  value: ref.watch(settingsProvider).when(data: (m) => (m['reminders_enabled'] as bool?) ?? false, loading: () => false, error: (_, __) => false),
-                  onChanged: (v) async {
-                    await ref.read(settingsProvider.notifier).setDailyReminderEnabled(v);
-                    setState(() {});
-                  },
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.notifications_active),
                   title: const Text('Smart daily reminder'),
                   subtitle: const Text('Get a daily notification to mark today\'s attendance'),
+                  trailing: Switch(
+                    value: ref.watch(settingsProvider).when(data: (m) => (m['reminders_enabled'] as bool?) ?? false, loading: () => false, error: (_, __) => false),
+                    onChanged: (v) async {
+                      await ref.read(settingsProvider.notifier).setDailyReminderEnabled(v);
+                      setState(() {});
+                    },
+                  ),
+                  onTap: () async {
+                    final current = ref.read(settingsProvider).value?['reminders_enabled'] as bool? ?? false;
+                    await ref.read(settingsProvider.notifier).setDailyReminderEnabled(!current);
+                    setState(() {});
+                  },
                 ),
 
                 // Reminder time selector (visible when reminders are enabled)
@@ -637,7 +646,44 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   subtitle: const Text('Short walkthrough and tips'),
                   onTap: () => showDialog<void>(context: context, builder: (ctx) => AlertDialog(
                         title: const Text('How Attendify works'),
-                        content: const SingleChildScrollView(child: Text('• Add subjects and schedules\n• Mark attendance daily\n• Use reminders to get notified\n• Mass-bunk rules control bulk marking\n• Export your data as CSV')),
+                        content: SingleChildScrollView(
+                          child: RichText(
+                            text: const TextSpan(
+                              style: TextStyle(fontSize: 14, color: Colors.black87),
+                              children: [
+                                TextSpan(text: 'SUBJECTS & SCHEDULES\n', style: TextStyle(fontWeight: FontWeight.bold)),
+                                TextSpan(text: '• Add subjects with codes, names, and credits\n'),
+                                TextSpan(text: '• Create schedules with multiple classes per day\n'),
+                                TextSpan(text: '• Set class counts for each schedule entry\n\n'),
+                                
+                                TextSpan(text: 'MARKING ATTENDANCE\n', style: TextStyle(fontWeight: FontWeight.bold)),
+                                TextSpan(text: '• Mark today\'s classes from dashboard\n'),
+                                TextSpan(text: '• Add past attendance (single day or range)\n'),
+                                TextSpan(text: '• Add extra classes anytime (attended/missed/mass bunk)\n'),
+                                TextSpan(text: '• Mark on unscheduled days with custom count\n\n'),
+                                
+                                TextSpan(text: 'TRACKING & ANALYTICS\n', style: TextStyle(fontWeight: FontWeight.bold)),
+                                TextSpan(text: '• View attendance percentage per subject\n'),
+                                TextSpan(text: '• Track held, attended, missed, extra, and mass bunk\n'),
+                                TextSpan(text: '• Calendar view with highlighted circles for tracking classes\n'),
+                                TextSpan(text: '• Consistency tracker shows current & best streak\n\n'),
+                                
+                                TextSpan(text: 'MASS BUNK RULES\n', style: TextStyle(fontWeight: FontWeight.bold)),
+                                TextSpan(text: '• Cancelled: Not counted in attendance\n'),
+                                TextSpan(text: '• Present: Counted as attended\n'),
+                                TextSpan(text: '• Absent: Counted as held but missed\n\n'),
+                                
+                                TextSpan(text: 'REMINDERS\n', style: TextStyle(fontWeight: FontWeight.bold)),
+                                TextSpan(text: '• Enable smart daily reminders\n'),
+                                TextSpan(text: '• Set custom reminder time\n\n'),
+                                
+                                TextSpan(text: 'DATA MANAGEMENT\n', style: TextStyle(fontWeight: FontWeight.bold)),
+                                TextSpan(text: '• Delete a subject to remove all associated data\n'),
+                                TextSpan(text: '• Clear all data to start fresh'),
+                              ],
+                            ),
+                          ),
+                        ),
                         actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Close'))],
                       )),
                 ),
@@ -683,10 +729,36 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.info_outline),
                   title: const Text('App version & changelog'),
-                  subtitle: const Text('View current version and recent changes'),
+                  subtitle: const Text('View current version and app features'),
                   onTap: () => showDialog<void>(context: context, builder: (ctx) => AlertDialog(
-                        title: const Text('Version & Changelog'),
-                        content: const SingleChildScrollView(child: Text('Version: 1.0.0\n\nChangelog:\n- Initial release with subjects, schedules, reminders, and export')),
+                        title: const Text('About Attendify'),
+                        content: const SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Version: 1.0.0\n\n'
+                                'Features:\n'
+                                '• Track attendance with multiple classes per schedule\n'
+                                '• Add extra classes and past attendance\n'
+                                '• Calendar view with visual indicators\n'
+                                '• Analytics with consistency tracking\n'
+                                '• Mass bunk rules for bulk marking\n'
+                                '• Smart daily reminders\n\n',
+                                style: TextStyle(fontSize: 14),
+                              ),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text('Made with '),
+                                  Text('❤️', style: TextStyle(color: Colors.red, fontSize: 16)),
+                                  Text(' by Joyita'),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
                         actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Close'))],
                       )),
                 ),

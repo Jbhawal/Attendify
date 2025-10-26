@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../constants/app_colors.dart';
 
 class AttendifyTheme {
   static ThemeData light() {
-  final base = ThemeData.light(useMaterial3: true);
+    final base = ThemeData.light(useMaterial3: true);
     final colorScheme = base.colorScheme.copyWith(
       primary: AppColors.primary,
       onPrimary: Colors.white,
@@ -17,8 +18,8 @@ class AttendifyTheme {
     );
 
     return base.copyWith(
-  colorScheme: colorScheme,
-  scaffoldBackgroundColor: colorScheme.surface,
+      colorScheme: colorScheme,
+      scaffoldBackgroundColor: colorScheme.surface,
       textTheme: GoogleFonts.poppinsTextTheme(base.textTheme).apply(bodyColor: Colors.black87, displayColor: Colors.black87),
       cardTheme: base.cardTheme.copyWith(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -36,6 +37,11 @@ class AttendifyTheme {
           color: Colors.black87,
         ),
         iconTheme: const IconThemeData(color: Colors.black87),
+        systemOverlayStyle: const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.dark,
+          statusBarBrightness: Brightness.light,
+        ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -70,7 +76,7 @@ class AttendifyTheme {
         labelStyle: const TextStyle(color: Colors.black87),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
-  dialogTheme: base.dialogTheme.copyWith(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      dialogTheme: base.dialogTheme.copyWith(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
       snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, backgroundColor: Colors.black87, contentTextStyle: const TextStyle(color: Colors.white)),
     );
   }

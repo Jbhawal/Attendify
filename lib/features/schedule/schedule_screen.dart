@@ -146,6 +146,24 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                                           Text(subject.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                                           const SizedBox(height: 6),
                                           Text('${entry.startTime} · ${entry.endTime}', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                                          Builder(
+                                            builder: (context) {
+                                              final settingsAsync = ref.watch(settingsProvider);
+                                              int classCount = 1;
+                                              settingsAsync.maybeWhen(
+                                                data: (settings) {
+                                                  var count = settings['schedule_count_${entry.id}'] as int?;
+                                                  count ??= settings[r'schedule_count_$scheduleId'] as int?;
+                                                  classCount = count ?? 1;
+                                                },
+                                                orElse: () {},
+                                              );
+                                              return Text(
+                                                '$classCount ${classCount == 1 ? 'class' : 'classes'}',
+                                                style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w500, fontSize: 13),
+                                              );
+                                            },
+                                          ),
                                         ],
                                       ),
                                     ),

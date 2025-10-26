@@ -61,24 +61,44 @@ final todaysClassesProvider = Provider<List<TimetableItem>>((ref) {
 final overallAttendanceProvider = Provider<double>((ref) {
   final attendance = ref.watch(attendanceProvider);
   final subjects = ref.watch(subjectsProvider);
+  final settings = ref.watch(settingsProvider).value ?? <String, dynamic>{};
+  final massRule = settings['mass_bunk_rule'] as String? ?? 'present';
+  
   if (subjects.isEmpty) {
     return 0;
   }
   int held = 0;
   int attended = 0;
+  
   for (final subject in subjects) {
     final records = attendance
         .where((record) => record.subjectId == subject.id)
-        .where((record) => record.status != AttendanceStatus.noClass);
-    final total = records.length;
-    if (total == 0) {
+        .where((record) => record.status != AttendanceStatus.noClass)
+        .toList();
+    
+    if (records.isEmpty) {
       continue;
     }
-    held += total;
-    attended += records
-        .where((record) => record.status == AttendanceStatus.present)
-        .length;
+    
+    for (final r in records) {
+      if (r.status == AttendanceStatus.massBunk) {
+        if (massRule == 'cancelled') {
+          continue; // not counted
+        } else if (massRule == 'present') {
+          held += r.count;
+          attended += r.count;
+        } else if (massRule == 'absent') {
+          held += r.count;
+        }
+      } else {
+        held += r.count;
+        if (r.status == AttendanceStatus.present || r.status == AttendanceStatus.extraClass) {
+          attended += r.count;
+        }
+      }
+    }
   }
+  
   if (held == 0) {
     return 100;
   }
@@ -89,10 +109,26 @@ final overallAttendanceProvider = Provider<double>((ref) {
 final overallHeldProvider = Provider<int>((ref) {
   final attendance = ref.watch(attendanceProvider);
   final subjects = ref.watch(subjectsProvider);
+  final settings = ref.watch(settingsProvider).value ?? <String, dynamic>{};
+  final massRule = settings['mass_bunk_rule'] as String? ?? 'present';
+  
   int held = 0;
   for (final subject in subjects) {
-    final records = attendance.where((record) => record.subjectId == subject.id && record.status != AttendanceStatus.noClass);
-    held += records.length;
+    final records = attendance
+        .where((record) => record.subjectId == subject.id && record.status != AttendanceStatus.noClass)
+        .toList();
+    
+    for (final r in records) {
+      if (r.status == AttendanceStatus.massBunk) {
+        if (massRule == 'cancelled') {
+          continue; // not counted
+        } else {
+          held += r.count;
+        }
+      } else {
+        held += r.count;
+      }
+    }
   }
   return held;
 });

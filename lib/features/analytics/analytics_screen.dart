@@ -115,27 +115,27 @@ class AnalyticsScreen extends ConsumerWidget {
           continue;
         }
         // count as held
-        held += 1;
+        held += record.count;
         massBunk += 1;
         if (massRule == 'present') {
-          attended += 1;
+          attended += record.count;
         }
         // if massRule == 'absent' we count held but do NOT increment missed here
         continue;
       }
 
       // Non-mass-bunk records
-      held += 1;
+      held += record.count;
       switch (record.status) {
         case AttendanceStatus.present:
-          attended += 1;
+          attended += record.count;
           break;
         case AttendanceStatus.absent:
-          missed += 1;
+          missed += record.count;
           break;
         case AttendanceStatus.extraClass:
-          extra += 1;
-          attended += 1;
+          extra += record.count;
+          attended += record.count;
           break;
         case AttendanceStatus.noClass:
           break;
@@ -246,24 +246,49 @@ class AnalyticsScreen extends ConsumerWidget {
     if (byDay.isEmpty) return {'currentStreak': 0, 'longestStreak': 0, 'lastMarked': null};
 
     final days = byDay.keys.toList()..sort();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    
     var currentStreak = 0;
     var longestStreak = 0;
-    DateTime? previousDay;
+    var tempStreak = 0;
+    DateTime? lastAttendedDay;
 
-    for (final day in days) {
+    // Calculate streaks by going through all days with attendance
+    for (int i = 0; i < days.length; i++) {
+      final day = days[i];
       final dayRecords = byDay[day]!;
       final attended = dayRecords.any((record) => record.status == AttendanceStatus.present || record.status == AttendanceStatus.extraClass);
+      
       if (attended) {
-        if (previousDay != null && day.difference(previousDay).inDays == 1) {
-          currentStreak += 1;
+        lastAttendedDay = day;
+        // Check if consecutive with previous attended day
+        if (i > 0) {
+          final prevDay = days[i - 1];
+          final prevAttended = byDay[prevDay]!.any((r) => r.status == AttendanceStatus.present || r.status == AttendanceStatus.extraClass);
+          
+          if (prevAttended && day.difference(prevDay).inDays == 1) {
+            tempStreak += 1;
+          } else {
+            tempStreak = 1;
+          }
         } else {
-          currentStreak = 1;
+          tempStreak = 1;
         }
-        longestStreak = currentStreak > longestStreak ? currentStreak : longestStreak;
-      } else {
-        currentStreak = 0;
+        
+        // Update longest streak
+        if (tempStreak > longestStreak) {
+          longestStreak = tempStreak;
+        }
       }
-      previousDay = day;
+    }
+
+    // Current streak is only valid if last attended day is today or yesterday
+    if (lastAttendedDay != null) {
+      if (lastAttendedDay.isAtSameMomentAs(today) || lastAttendedDay.isAtSameMomentAs(yesterday)) {
+        currentStreak = tempStreak;
+      }
     }
 
     return {'currentStreak': currentStreak, 'longestStreak': longestStreak, 'lastMarked': days.last};
@@ -481,12 +506,29 @@ class _SubjectAnalyticsCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Wrap(spacing: 16, runSpacing: 16, children: [
-                  _chip('Held', summary['held'] ?? 0, Colors.indigo),
-                  _chip('Attended', summary['attended'] ?? 0, Colors.green),
-                  _chip('Missed', summary['missed'] ?? 0, Colors.redAccent),
-                  _chip('Extra', summary['extra'] ?? 0, Colors.deepPurple),
-                ]),
+                Column(
+                  children: [
+                    // First row: Held, Attended, Missed
+                    Row(
+                      children: [
+                        Expanded(child: _chip('Held', summary['held'] ?? 0, Colors.indigo)),
+                        const SizedBox(width: 12),
+                        Expanded(child: _chip('Attended', summary['attended'] ?? 0, Colors.green)),
+                        const SizedBox(width: 12),
+                        Expanded(child: _chip('Missed', summary['missed'] ?? 0, Colors.redAccent)),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // Second row: Extra, Mass Bunk
+                    Row(
+                      children: [
+                        Expanded(child: _chip('Extra', summary['extra'] ?? 0, Colors.deepPurple)),
+                        const SizedBox(width: 12),
+                        Expanded(child: _chip('Mass Bunk', summary['massBunk'] ?? 0, Colors.orange)),
+                      ],
+                    ),
+                  ],
+                ),
                 if (plannedTotal != null) ...[
                   const SizedBox(height: 10),
                   Text('Planned total: $plannedTotal', style: TextStyle(color: Colors.grey[600], fontSize: 12)),

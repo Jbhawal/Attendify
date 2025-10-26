@@ -198,6 +198,7 @@ class _AttendifyAppState extends ConsumerState<AttendifyApp> {
         nav?.push(MaterialPageRoute(builder: (_) => const _OnboardingPage()));
       }
     });
+    
     return MaterialApp(
       navigatorKey: _navigatorKey,
       debugShowCheckedModeBanner: false,

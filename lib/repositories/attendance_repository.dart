@@ -138,9 +138,22 @@ class AttendanceRepository extends StateNotifier<List<AttendanceRecord>> {
     int attended = 0;
     int missed = 0;
     int extraClasses = 0;
+    int massBunkCount = 0;
     for (final r in records) {
       if (r.status == AttendanceStatus.noClass) continue;
+      
+      // Check if this is an extra class (by status or by note markers)
+      final isExtra = r.status == AttendanceStatus.extraClass || 
+                      (r.notes?.contains('EXTRA_ATTENDED') ?? false) ||
+                      (r.notes?.contains('EXTRA_MISSED') ?? false) ||
+                      (r.notes?.contains('EXTRA_MB') ?? false);
+      
+      if (isExtra) {
+        extraClasses += r.count;
+      }
+      
       if (r.status == AttendanceStatus.massBunk) {
+        massBunkCount += r.count;
         if (massRule == 'cancelled') {
           continue; // not counted
         } else if (massRule == 'present') {
@@ -159,9 +172,6 @@ class AttendanceRepository extends StateNotifier<List<AttendanceRecord>> {
         if (r.status == AttendanceStatus.absent) {
           missed += r.count;
         }
-        if (r.status == AttendanceStatus.extraClass) {
-          extraClasses += r.count;
-        }
       }
     }
     return {
@@ -169,6 +179,7 @@ class AttendanceRepository extends StateNotifier<List<AttendanceRecord>> {
       'attended': attended,
       'missed': missed,
       'extra': extraClasses,
+      'massBunk': massBunkCount,
     };
    }
 

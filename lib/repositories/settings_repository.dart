@@ -1,20 +1,24 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive/hive.dart';
 
 import '../constants/hive_boxes.dart';
+import '../services/notification_service.dart';
 
 class SettingsRepository extends StateNotifier<AsyncValue<Map<String, dynamic>>> {
-  SettingsRepository(this._box)
+  SettingsRepository(this._box, this._notificationService)
       : super(const AsyncValue.loading()) {
     _load();
   }
 
   final Box _box;
+  final NotificationService _notificationService;
 
   static final provider = StateNotifierProvider<SettingsRepository,
       AsyncValue<Map<String, dynamic>>>((ref) {
     final box = Hive.box(settingsBoxName);
-    return SettingsRepository(box);
+    final notificationService = ref.read(notificationServiceProvider);
+    return SettingsRepository(box, notificationService);
   });
 
   Future<void> _load() async {
@@ -48,11 +52,35 @@ class SettingsRepository extends StateNotifier<AsyncValue<Map<String, dynamic>>>
   Future<void> setDailyReminderEnabled(bool enabled) async {
     await _box.put('reminders_enabled', enabled);
     await _load();
+    
+    // Schedule or cancel notifications based on enabled state
+    if (enabled) {
+      final timeStr = (_box.get('reminder_time') as String?) ?? '20:00';
+      final parts = timeStr.split(':');
+      final hour = int.tryParse(parts[0]) ?? 20;
+      final minute = int.tryParse(parts[1]) ?? 0;
+      await _notificationService.scheduleDailyReminder(
+        time: TimeOfDay(hour: hour, minute: minute),
+      );
+    } else {
+      await _notificationService.cancelReminders();
+    }
   }
 
   Future<void> setReminderTime(String time) async {
     await _box.put('reminder_time', time);
     await _load();
+    
+    // Reschedule notification if reminders are enabled
+    final enabled = (_box.get('reminders_enabled') as bool?) ?? false;
+    if (enabled) {
+      final parts = time.split(':');
+      final hour = int.tryParse(parts[0]) ?? 20;
+      final minute = int.tryParse(parts[1]) ?? 0;
+      await _notificationService.scheduleDailyReminder(
+        time: TimeOfDay(hour: hour, minute: minute),
+      );
+    }
   }
 
   /// Mass bunk handling rule. Stored as one of: 'present', 'cancelled', 'absent'

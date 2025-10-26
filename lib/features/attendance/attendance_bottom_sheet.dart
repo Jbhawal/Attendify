@@ -101,7 +101,9 @@ Future<void> showAttendanceBottomSheet({
                 Wrap(
                   spacing: 12,
                   runSpacing: 12,
-                  children: AttendanceStatus.values.map((status) {
+                  children: AttendanceStatus.values
+                      .where((status) => status != AttendanceStatus.extraClass) // Remove extra class option
+                      .map((status) {
                     final isSelected = selectedStatus == status;
                     return ChoiceChip(
                       selected: isSelected,

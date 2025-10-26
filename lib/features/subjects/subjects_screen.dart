@@ -54,14 +54,14 @@ class SubjectsScreen extends ConsumerWidget {
                         if (r.status == AttendanceStatus.massBunk) {                                                                                
                           if (massRule == 'cancelled') continue;                                                                                    
                           if (massRule == 'present') {       
-                            held += 1;
-                            attended += 1;
+                            held += r.count;
+                            attended += r.count;
                           } else {
-                            held += 1; // treated as absent  
+                            held += r.count; // treated as absent  
                           }
                         } else {
-                          held += 1;
-                          if (r.status == AttendanceStatus.present || r.status == AttendanceStatus.extraClass) attended += 1;                                                                                  
+                          held += r.count;
+                          if (r.status == AttendanceStatus.present || r.status == AttendanceStatus.extraClass) attended += r.count;                                                                                  
                         }
                       }
                       if (held > 0) {
@@ -121,14 +121,33 @@ class SubjectsScreen extends ConsumerWidget {
                               context: context,
                               builder: (context) => AlertDialog(                                                                                          
                                 title: const Text('Delete subject?'),                                                                                     
-                                content: Text('Are you sure you want to delete ${subject.name}? All related schedules and attendance will remain until removed manually.'),                                            
+                                content: Text('Are you sure you want to delete ${subject.name}?\n\nThis will permanently delete:\n• The subject\n• All schedules\n• All attendance records\n\nThis action cannot be undone.'),                                            
                                 actions: [
                                   TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),                                                                                            
-                                  FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Delete')),                                                                                         
+                                  FilledButton(
+                                    onPressed: () => Navigator.of(context).pop(true),
+                                    style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                                    child: const Text('Delete'),
+                                  ),                                                                                         
                                 ],
                               ),
                             );
-                            if (confirmed ?? false) await ref.read(subjectsProvider.notifier).deleteSubject(subject.id);                            
+                            if (confirmed ?? false) {
+                              // Delete all attendance records for this subject
+                              final attendanceRecords = ref.read(attendanceProvider).where((r) => r.subjectId == subject.id).toList();
+                              for (final record in attendanceRecords) {
+                                await ref.read(attendanceProvider.notifier).deleteRecord(record.id);
+                              }
+                              
+                              // Delete all schedule entries for this subject
+                              final scheduleEntries = ref.read(scheduleProvider).where((s) => s.subjectId == subject.id).toList();
+                              for (final schedule in scheduleEntries) {
+                                await ref.read(scheduleProvider.notifier).deleteEntry(schedule.id);
+                              }
+                              
+                              // Finally, delete the subject itself
+                              await ref.read(subjectsProvider.notifier).deleteSubject(subject.id);
+                            }                            
                           },
                         );
                       },
@@ -325,19 +344,35 @@ class _SubjectCardState extends ConsumerState<_SubjectCard> {
     settingsAsync.maybeWhen(data: (m) => massRule = m['mass_bunk_rule'] as String? ?? 'present', orElse: () {});
     int held = 0;
     int attended = 0;
+    int massBunkCount = 0;
+    int missed = 0;
+    int extraClasses = 0;
     for (final r in records) {
       if (r.status == AttendanceStatus.noClass) continue;
+      
+      // Check if this is an extra class (by status or by note markers)
+      final isExtra = r.status == AttendanceStatus.extraClass || 
+                      (r.notes?.contains('EXTRA_ATTENDED') ?? false) ||
+                      (r.notes?.contains('EXTRA_MISSED') ?? false) ||
+                      (r.notes?.contains('EXTRA_MB') ?? false);
+      
+      if (isExtra) {
+        extraClasses += r.count;
+      }
+      
       if (r.status == AttendanceStatus.massBunk) {
+        massBunkCount += r.count;
         if (massRule == 'cancelled') continue;
         if (massRule == 'present') {
-          held += 1;
-          attended += 1;
+          held += r.count;
+          attended += r.count;
         } else {
-          held += 1;
+          held += r.count;
         }
       } else {
-        held += 1;
-        if (r.status == AttendanceStatus.present || r.status == AttendanceStatus.extraClass) attended += 1;
+        held += r.count;
+        if (r.status == AttendanceStatus.present || r.status == AttendanceStatus.extraClass) attended += r.count;
+        if (r.status == AttendanceStatus.absent) missed += r.count;
       }
     }
 
@@ -421,13 +456,27 @@ class _SubjectCardState extends ConsumerState<_SubjectCard> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(12)),
-                        child: Row(
+                        child: Column(
                           children: [
-                            _infoChip('Attended', attended, Colors.green),
-                            const SizedBox(width: 12),
-                            _infoChip('Held', held, Colors.indigo),
-                            const SizedBox(width: 12),
-                            _infoChip('Extra', records.where((record) => record.status == AttendanceStatus.extraClass).length, Colors.deepPurple),
+                            // First row: Held, Attended, Missed
+                            Row(
+                              children: [
+                                Expanded(child: _infoChip('Held', held, Colors.indigo)),
+                                const SizedBox(width: 12),
+                                Expanded(child: _infoChip('Attended', attended, Colors.green)),
+                                const SizedBox(width: 12),
+                                Expanded(child: _infoChip('Missed', missed, Colors.redAccent)),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            // Second row: Extra, Mass Bunk
+                            Row(
+                              children: [
+                                Expanded(child: _infoChip('Extra', extraClasses, Colors.deepPurple)),
+                                const SizedBox(width: 12),
+                                Expanded(child: _infoChip('Mass Bunk', massBunkCount, Colors.orange)),
+                              ],
+                            ),
                           ],
                         ),
                       ),
@@ -460,18 +509,16 @@ class _SubjectCardState extends ConsumerState<_SubjectCard> {
   }
 
   Widget _infoChip(String label, int value, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(16)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('$value', style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 4),
-            Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(16)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('$value', style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+        ],
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -14,6 +15,24 @@ const bool kSeedSampleData = false;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Lock orientation to portrait mode only
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
+  
+  // Set status bar to be visible with dark icons on light background
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent, // Transparent status bar
+      statusBarIconBrightness: Brightness.dark, // Dark icons for light background
+      statusBarBrightness: Brightness.light, // For iOS
+      systemNavigationBarColor: Colors.white, // Navigation bar color
+      systemNavigationBarIconBrightness: Brightness.dark, // Dark icons
+    ),
+  );
+  
   await Hive.initFlutter();
   Hive
     ..registerAdapter(SubjectAdapter())

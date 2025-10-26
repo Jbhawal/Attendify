@@ -55,10 +55,74 @@ class _SubjectDetailPageState extends State<SubjectDetailPage> {
       case AttendanceStatus.noClass:
         return 'No class';
       case AttendanceStatus.extraClass:
-        return 'Extra class';
+        return 'Extra class - Present';
       case AttendanceStatus.massBunk:
         return 'Mass bunk';
     }
+  }
+
+  // Get gradient for extra class display based on status and notes
+  LinearGradient? _getCalendarGradient(AttendanceRecord record) {
+    final notes = record.notes ?? '';
+    
+    // Check for extra class markers in notes
+    if (notes.contains('EXTRA_ATTENDED') || record.status == AttendanceStatus.extraClass) {
+      // Extra class attended: purple + green (half-half split)
+      return LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Colors.deepPurple.withValues(alpha: 0.55),
+          Colors.deepPurple.withValues(alpha: 0.55),
+          Colors.green.withValues(alpha: 0.55),
+          Colors.green.withValues(alpha: 0.55),
+        ],
+        stops: const [0.0, 0.5, 0.5, 1.0],
+      );
+    } else if (notes.contains('EXTRA_MISSED')) {
+      // Extra class missed: purple + red (half-half split)
+      return LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Colors.deepPurple.withValues(alpha: 0.55),
+          Colors.deepPurple.withValues(alpha: 0.55),
+          Colors.red.withValues(alpha: 0.55),
+          Colors.red.withValues(alpha: 0.55),
+        ],
+        stops: const [0.0, 0.5, 0.5, 1.0],
+      );
+    } else if (notes.contains('EXTRA_MB')) {
+      // Extra class mass bunk: purple + yellow (half-half split)
+      return LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Colors.deepPurple.withValues(alpha: 0.55),
+          Colors.deepPurple.withValues(alpha: 0.55),
+          Colors.yellow.withValues(alpha: 0.6),
+          Colors.yellow.withValues(alpha: 0.6),
+        ],
+        stops: const [0.0, 0.5, 0.5, 1.0],
+      );
+    }
+    
+    return null;
+  }
+
+  // Get label for status display in details
+  String _getDetailedStatusLabel(AttendanceRecord record) {
+    final notes = record.notes ?? '';
+    
+    if (notes.contains('EXTRA_ATTENDED') || record.status == AttendanceStatus.extraClass) {
+      return 'Extra class - Present';
+    } else if (notes.contains('EXTRA_MISSED')) {
+      return 'Extra class - Absent';
+    } else if (notes.contains('EXTRA_MB')) {
+      return 'Extra class - Mass Bunk';
+    }
+    
+    return _statusLabel(record.status);
   }
 
   @override
@@ -176,22 +240,25 @@ class _SubjectDetailPageState extends State<SubjectDetailPage> {
                         final key = _normalizeDate(day);
                         final dayRecords = events[key] ?? const <AttendanceRecord>[];
                         final hasEvents = dayRecords.isNotEmpty;
-                        final firstColor = hasEvents ? _statusColor(dayRecords.first.status) : null;
-
+                        
                         if (!hasEvents) {
                           return Center(child: Text('${day.day}'));
                         }
 
-                        // Fixed-size circle behind the day number so all highlighted
-                        // dates render at the same size irrespective of 1- or 2-digit days.
+                        final record = dayRecords.first;
+                        final gradient = _getCalendarGradient(record);
+                        final firstColor = _statusColor(record.status);
+
+                        // Fixed-size circle behind the day number
                         return Center(
                           child: Container(
                             width: 36,
                             height: 36,
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
-                              color: firstColor?.withValues(alpha: 0.18),
                               shape: BoxShape.circle,
+                              gradient: gradient,
+                              color: gradient == null ? firstColor.withValues(alpha: 0.18) : null,
                             ),
                             child: Text('${day.day}', style: const TextStyle(fontWeight: FontWeight.w600)),
                           ),
@@ -221,6 +288,8 @@ class _SubjectDetailPageState extends State<SubjectDetailPage> {
                         final key = _normalizeDate(day);
                         final dayRecords = events[key] ?? const <AttendanceRecord>[];
                         final hasEvents = dayRecords.isNotEmpty;
+                        
+                        final gradient = hasEvents ? _getCalendarGradient(dayRecords.first) : null;
                         final firstColor = hasEvents ? _statusColor(dayRecords.first.status) : null;
 
                         return Center(
@@ -229,8 +298,9 @@ class _SubjectDetailPageState extends State<SubjectDetailPage> {
                             height: 36,
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
-                              color: AppColors.gradientEnd.withValues(alpha: 0.15),
                               shape: BoxShape.circle,
+                              gradient: gradient,
+                              color: gradient == null ? AppColors.gradientEnd.withValues(alpha: 0.15) : null,
                               border: Border.all(color: firstColor ?? Colors.transparent, width: hasEvents ? 1.6 : 0),
                             ),
                             child: Text('${day.day}', style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -251,13 +321,34 @@ class _SubjectDetailPageState extends State<SubjectDetailPage> {
                           final record = dayRecords[index];
                           final statusColor = _statusColor(record.status);
                           final timeLabel = DateFormat('h:mm a').format(record.date);
+                          final detailedLabel = _getDetailedStatusLabel(record);
+                          
+                          // Extract user notes (remove EXTRA_ markers)
+                          String? displayNotes = record.notes;
+                          if (displayNotes != null) {
+                            displayNotes = displayNotes
+                                .replaceAll('EXTRA_ATTENDED|', '')
+                                .replaceAll('EXTRA_MISSED|', '')
+                                .replaceAll('EXTRA_MB|', '')
+                                .replaceAll('EXTRA_ATTENDED', '')
+                                .replaceAll('EXTRA_MISSED', '')
+                                .replaceAll('EXTRA_MB', '')
+                                .trim();
+                            if (displayNotes.isEmpty) displayNotes = null;
+                          }
+                          
                           return ListTile(
-                            title: Text(_statusLabel(record.status), style: TextStyle(fontWeight: FontWeight.w600, color: statusColor)),
-                            subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(timeLabel), if (record.notes != null && record.notes!.isNotEmpty) Text(record.notes!, style: TextStyle(color: Colors.grey[600]))]),
+                            title: Text(detailedLabel, style: TextStyle(fontWeight: FontWeight.w600, color: statusColor)),
+                            subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text(timeLabel),
+                              Text('${record.count} ${record.count == 1 ? 'class' : 'classes'}', style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w500, fontSize: 13)),
+                              if (displayNotes != null && displayNotes.isNotEmpty) 
+                                Text(displayNotes, style: TextStyle(color: Colors.grey[600]))
+                            ]),
                             trailing: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
-                              child: Text(_statusLabel(record.status), style: TextStyle(color: statusColor, fontWeight: FontWeight.w600)),
+                              child: Text(detailedLabel, style: TextStyle(color: statusColor, fontWeight: FontWeight.w600)),
                             ),
                           );
                         },
