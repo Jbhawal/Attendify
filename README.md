@@ -27,7 +27,6 @@ flutter test
 flutter run
 ```
 
-```
 
 > **Note:** The app is optimized for Android. Portrait orientation is locked for the best user experience.
 
@@ -110,4 +109,7 @@ Contributions welcome! Feel free to open issues or submit pull requests for:
 ## 📄 License
 
 This project is available for personal and educational use.
+
+---
+
 Made with ❤️ by Joyita.
