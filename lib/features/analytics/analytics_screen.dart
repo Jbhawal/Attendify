@@ -28,28 +28,48 @@ class AnalyticsScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Analytics')),
-      body: ResponsivePage(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
+      body: SafeArea(
+        child: ResponsivePage(
+          padding: EdgeInsets.zero,
           child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 24),
             children: [
-              _OverviewCard(overview: overview),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: _OverviewCard(overview: overview),
+              ),
               const SizedBox(height: 20),
-              _RiskDistributionCard(buckets: riskBuckets, t: t),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: _RiskDistributionCard(buckets: riskBuckets, t: t),
+              ),
               const SizedBox(height: 20),
-              _ConsistencyCard(consistency: consistency),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: _ConsistencyCard(consistency: consistency),
+              ),
               const SizedBox(height: 20),
-              if (subjects.isEmpty) _emptyState(context) else ...[
-                const Text('Subject-wise', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+              if (subjects.isEmpty) 
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _emptyState(context),
+                )
+              else ...[
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20),
+                  child: Text('Subject-wise', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                ),
                 const SizedBox(height: 12),
-                  ...subjects.map((s) {
-                    final summary = attendanceRepo.summaryForSubject(s.id);
-                    final percent = attendanceRepo.percentageForSubject(s.id); // double?
-                    // Fix: interpolate subject id correctly into settings key
-                    final plannedKey = 'subject_total_${s.id}';
-                    final planned = settings[plannedKey] as int?;
-                    debugPrint('Analytics subject ${s.id}: pct=${percent == null ? 'null' : percent.toStringAsFixed(2)}, planned=$planned');
-                    return _SubjectAnalyticsCard(
+                ...subjects.map((s) {
+                  final summary = attendanceRepo.summaryForSubject(s.id);
+                  final percent = attendanceRepo.percentageForSubject(s.id); // double?
+                  // Fix: interpolate subject id correctly into settings key
+                  final plannedKey = 'subject_total_${s.id}';
+                  final planned = settings[plannedKey] as int?;
+                  debugPrint('Analytics subject ${s.id}: pct=${percent == null ? 'null' : percent.toStringAsFixed(2)}, planned=$planned');
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: _SubjectAnalyticsCard(
                       subject: s,
                       percentage: percent ?? 0.0,
                       summary: summary,
@@ -57,10 +77,12 @@ class AnalyticsScreen extends ConsumerWidget {
                       canMiss: _calculateCanMiss(summary['held'] ?? 0, summary['attended'] ?? 0, planned: planned, t: t),
                       needToAttend: _calculateNeedToAttend(summary['held'] ?? 0, summary['attended'] ?? 0, planned: planned, t: t),
                       t: t,
-                    );
-                  }),
+                    ),
+                  );
+                }),
                 // removed unnecessary .toList() in spread
               ],
+              const SizedBox(height: 80),
             ],
           ),
         ),

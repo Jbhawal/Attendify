@@ -79,12 +79,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         data: (map) {
           final displayName = _name.isEmpty ? 'Your Name' : _name;
 
-          return ResponsivePage(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+          return SafeArea(
+            child: ResponsivePage(
+              padding: EdgeInsets.zero,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                 // Header card with colored background
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 28),
@@ -692,7 +694,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ],
             ), // Column
           ), // SingleChildScrollView
-        ); // ResponsivePage
+        ), // ResponsivePage
+        ); // SafeArea
         },
       ),
     );

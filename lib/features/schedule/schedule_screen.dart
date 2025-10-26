@@ -45,11 +45,13 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
         label: const Text('Add Class'),
         icon: const Icon(Icons.add_rounded),
       ),
-      body: ResponsivePage(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
+      body: SafeArea(
+        child: ResponsivePage(
+          padding: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
@@ -160,6 +162,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
             ),
             ],
           ),
+        ),
         ),
       ),
     );

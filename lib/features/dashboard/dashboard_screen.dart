@@ -32,6 +32,7 @@ class DashboardScreen extends ConsumerWidget {
       backgroundColor: AppColors.background,
       body: SafeArea(
           child: ResponsivePage(
+            padding: EdgeInsets.zero,
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 24),
               children: [
@@ -46,23 +47,31 @@ class DashboardScreen extends ConsumerWidget {
             const SizedBox(height: 20),
 
             // Quick stats tiles
-            Row(
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
                 children: [
-                Expanded(child: _statTile('Overall %', overallHeld == 0 ? 'No data' : '${overallAttendance.toStringAsFixed(1)}%', color: AppColors.gradientStart)),
-                const SizedBox(width: 12),
-                Expanded(child: _statTile('At-risk', '${atRiskSubjects.length}', color: Colors.orangeAccent)),
-                const SizedBox(width: 12),
-                Expanded(child: _statTile('Today', '${todaysClasses.length}', color: AppColors.primary)),
-              ],
+                  Expanded(child: _statTile('Overall %', overallHeld == 0 ? 'No data' : '${overallAttendance.toStringAsFixed(1)}%', color: AppColors.gradientStart)),
+                  const SizedBox(width: 12),
+                  Expanded(child: _statTile('At-risk', '${atRiskSubjects.length}', color: Colors.orangeAccent)),
+                  const SizedBox(width: 12),
+                  Expanded(child: _statTile('Today', '${todaysClasses.length}', color: AppColors.primary)),
+                ],
+              ),
             ),
             const SizedBox(height: 20),
 
             // At-risk subjects horizontal scroller
             if (atRiskSubjects.isNotEmpty) ...[
-              _sectionTitle('Needs Attention'),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: _sectionTitle('Needs Attention'),
+              ),
               const SizedBox(height: 12),
               // Show Needs Attention subjects as a responsive grid of ring cards
-              LayoutBuilder(builder: (context, constraints) {
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: LayoutBuilder(builder: (context, constraints) {
                 final crossAxisCount = constraints.maxWidth > 720 ? 3 : (constraints.maxWidth > 420 ? 2 : 1);
                 final spacing = 12.0;
                 return Wrap(
@@ -96,22 +105,32 @@ class DashboardScreen extends ConsumerWidget {
                   }).toList(),
                 );
               }),
+              ),
               const SizedBox(height: 20),
             ],
 
-            _sectionTitle('Today’s Classes'),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _sectionTitle('Today\'s Classes'),
+            ),
             const SizedBox(height: 12),
             if (todaysClasses.isEmpty)
-              _emptyState(
-                context,
-                message: 'No classes scheduled today. Enjoy your day or build your timetable!',
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: _emptyState(
+                  context,
+                  message: 'No classes scheduled today. Enjoy your day or build your timetable!',
+                ),
               )
             else
-              Column(
-                children: todaysClasses.map((item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _CompactClassTile(item: item, onTap: () => showAttendanceBottomSheet(context: context, ref: ref, item: item)),
-                )).toList(),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  children: todaysClasses.map((item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _CompactClassTile(item: item, onTap: () => showAttendanceBottomSheet(context: context, ref: ref, item: item)),
+                  )).toList(),
+                ),
               ),
 
             const SizedBox(height: 80),
